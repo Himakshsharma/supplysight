@@ -199,6 +199,15 @@ def build_master_data(cfg: GenConfig) -> dict[str, pd.DataFrame]:
     # three legitimate new vendors onboarded during the period (normal behaviour)
     for j, idx in enumerate(rng.choice(cfg.n_vendors, 3, replace=False)):
         vendors[idx]["created_on"] = (start + pd.Timedelta(days=int(120 + 160 * j))).date().isoformat()
+    # two legitimate branch registrations: same PAN, different state GSTIN (normal in India)
+    for idx in rng.choice(cfg.n_vendors, 2, replace=False):
+        parent = dict(vendors[idx])
+        city, state, code = next(c for c in C.CITIES[::-1] if c[2] != parent["stcd3"][:2])
+        parent.update({"lifnr": str(500001 + len(vendors)), "name1": parent["name1"] + f" ({city} Branch)",
+                       "stras": f"Unit {rng.integers(1, 90)}, {rng.choice(C.STREETS)}", "ort01": city,
+                       "regio": state, "stcd3": make_gstin(rng, code, pan=parent["stcd3"][2:12]),
+                       "bank_ref": _fake_bank_ref(rng)})
+        vendors.append(parent)
     vend_df = pd.DataFrame(vendors)
 
     # ---- plants for finished goods
@@ -289,15 +298,23 @@ def build_master_data(cfg: GenConfig) -> dict[str, pd.DataFrame]:
 
 
 # --------------------------------------------------------------------------- transactions
-def _weeks(cfg: GenConfig) -> list[pd.Timestamp]:
+def _weeks(cfg: GenConfig, extra_days: int = 0) -> list[pd.Timestamp]:
     s = pd.Timestamp(cfg.start)
     s = s - pd.Timedelta(days=s.weekday())  # Monday
-    return list(pd.date_range(s, pd.Timestamp(cfg.end), freq="W-MON"))
+    return list(pd.date_range(s, pd.Timestamp(cfg.end) + pd.Timedelta(days=extra_days), freq="W-MON"))
 
 
-def simulate_production(cfg: GenConfig, md: dict, rng: np.random.Generator) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Weekly production orders per FG and plant (AFKO header, AFPO item)."""
-    weeks = _weeks(cfg)
+PLAN_HORIZON_DAYS = 28  # frozen production-plan horizon published as planned orders (PLAF)
+
+
+def simulate_production(cfg: GenConfig, md: dict, rng: np.random.Generator
+                        ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Weekly production orders per FG and plant (AFKO header, AFPO item) plus planned
+    orders (PLAF) for the frozen 4-week horizon after the data end date."""
+    weeks = _weeks(cfg, PLAN_HORIZON_DAYS)
+    end = pd.Timestamp(cfg.end)
+    plaf = []
+    plnum = 7000001 + cfg.id_offset
     anchor = pd.Timestamp(cfg.trend_anchor)
     surge = cfg.drift.get("demand_surge", {})
     afko, afpo = [], []
@@ -305,7 +322,7 @@ def simulate_production(cfg: GenConfig, md: dict, rng: np.random.Generator) -> t
     for m, meta in md["fg_meta"].items():
         for plant in md["fg_plants"][m]:
             share = 0.55 if len(md["fg_plants"][m]) == 2 and plant == "1000" else (0.45 if len(md["fg_plants"][m]) == 2 else 1.0)
-            ar = 0.0
+            ar, carry = 0.0, 0.0
             for w in weeks:
                 sales_date = (w + pd.Timedelta(days=21)).date()  # produce ~3 weeks before sale
                 years = (w - anchor).days / 365.25
@@ -315,9 +332,21 @@ def simulate_production(cfg: GenConfig, md: dict, rng: np.random.Generator) -> t
                 plan = max(0.0, round(plan / 50) * 50)
                 if plan <= 0:
                     continue
-                actual = max(0.0, round(plan * rng.normal(1.0, 0.06) / 10) * 10)
+                # execution deviates from plan: yield/batch-size noise, slipped orders, rush batches
+                actual = plan * rng.lognormal(0.0, 0.12) + carry
+                carry = 0.0
+                r = rng.random()
+                if r < 0.06:
+                    carry, actual = actual, 0.0  # slipped into next week
+                elif r < 0.10:
+                    actual *= rng.uniform(1.4, 1.9)  # rush / extra batch
+                actual = max(0.0, round(actual / 10) * 10)
                 start_day = w + pd.Timedelta(days=int(rng.integers(0, 5)))
-                if start_day > pd.Timestamp(cfg.end):
+                if start_day > end:
+                    if start_day <= end + pd.Timedelta(days=PLAN_HORIZON_DAYS):
+                        plaf.append({"plnum": str(plnum), "matnr": m, "plwrk": plant, "gsmng": plan,
+                                     "psttr": start_day.date().isoformat(), "paart": "LA"})
+                        plnum += 1
                     continue
                 afko.append({"aufnr": str(aufnr), "werks": plant, "plnbez": m, "gamng": plan,
                              "gstrp": start_day.date().isoformat(),
@@ -325,7 +354,8 @@ def simulate_production(cfg: GenConfig, md: dict, rng: np.random.Generator) -> t
                 afpo.append({"aufnr": str(aufnr), "posnr": "0001", "matnr": m, "psmng": plan, "wemng": actual,
                              "werks": plant})
                 aufnr += 1
-    return pd.DataFrame(afko), pd.DataFrame(afpo)
+    plaf_cols = ["plnum", "matnr", "plwrk", "gsmng", "psttr", "paart"]
+    return pd.DataFrame(afko), pd.DataFrame(afpo), pd.DataFrame(plaf, columns=plaf_cols)
 
 
 def derive_consumption(afko: pd.DataFrame, afpo: pd.DataFrame, md: dict, rng: np.random.Generator,
@@ -386,8 +416,8 @@ def simulate_procurement(cfg: GenConfig, md: dict, issues: pd.DataFrame,
                 continue
             # --- raise a PR and convert to a PO
             qty = max(pack, np.ceil(avg * cover * rng.uniform(0.85, 1.2) / pack) * pack)
-            if rng.random() < 0.03:  # legit festive pre-buy
-                qty *= rng.uniform(1.8, 2.6)
+            if rng.random() < 0.04:  # legit festive pre-buy / campaign stock
+                qty = np.ceil(qty * rng.uniform(1.8, 3.5) / pack) * pack
             cand = recs.copy()
             w_valid = cand.lifnr.map(lambda lf: pd.Timestamp(vendors.loc[lf, "created_on"]) <= w)
             cand = cand[w_valid.values]
@@ -400,18 +430,20 @@ def simulate_procurement(cfg: GenConfig, md: dict, issues: pd.DataFrame,
             lifnr = rec.lifnr
             if new_vendor_share and rng.random() < new_vendor_share:
                 lifnr = "DRIFT"  # replaced later by a drift vendor
-            weekday = int(rng.choice([0, 1, 2, 3, 4, 5], p=[0.22, 0.22, 0.2, 0.18, 0.16, 0.02]))
-            hour = int(np.clip(rng.normal(13, 2.4), 8, 19))
+            weekday = int(rng.choice([0, 1, 2, 3, 4, 5], p=[0.21, 0.21, 0.2, 0.18, 0.15, 0.05]))
+            hour = int(np.clip(rng.normal(13, 2.8), 7, 21))
             created = w + pd.Timedelta(days=weekday, hours=hour, minutes=int(rng.integers(0, 60)))
             if created > end:
                 continue
             years = (w - anchor).days / 365.25
-            price = rec.netpr * (1.055 ** years) * rng.uniform(0.97, 1.035) * price_shock
-            if rng.random() < 0.04:
-                price *= rng.uniform(1.06, 1.18)  # legit market move
+            volatile = mat.loc[m, "matkl"] in ("RM-FRAG", "RM-BUTTER", "RM-OIL", "RM-ACTIVE")
+            price = rec.netpr * (1.055 ** years) * price_shock * (
+                rng.uniform(0.9, 1.12) if volatile else rng.uniform(0.97, 1.035))
+            if rng.random() < 0.06:
+                price *= rng.uniform(1.06, 1.32)  # legit market move / spot buy
             lt = max(2, int(round(rec.aplfz * rng.uniform(0.85, 1.2))))
-            if rng.random() < 0.04:
-                lt = max(2, int(round(rec.aplfz * rng.uniform(0.45, 0.7))))  # legit expedite
+            if rng.random() < 0.05:
+                lt = max(1, int(round(rec.aplfz * rng.uniform(0.25, 0.6))))  # legit expedite
             eindt = created.normalize() + pd.Timedelta(days=lt)
             vend_delay = vendors.loc[rec.lifnr, "reliability_sd"]
             gr_date = eindt + pd.Timedelta(days=int(max(-2, round(rng.normal(1, vend_delay)))))
@@ -427,6 +459,17 @@ def simulate_procurement(cfg: GenConfig, md: dict, issues: pd.DataFrame,
             pipeline.append((gr_date, float(qty)))
             ebeln += 1
             banfn += 1
+            if rng.random() < 0.03:  # legit: second delivery split the same day by the same buyer
+                half = np.ceil(qty / 2 / pack) * pack
+                pos[-1]["menge"] = float(half)
+                twin = dict(pos[-1])
+                twin.update({"ebeln": str(ebeln), "created_at": created + pd.Timedelta(minutes=int(rng.integers(2, 30))),
+                             "eindt": eindt + pd.Timedelta(days=14), "gr_date": gr_date + pd.Timedelta(days=14),
+                             "banfn": str(banfn)})
+                pos.append(twin)
+                eban.append({**eban[-1], "banfn": str(banfn), "menge": float(half), "ebeln": str(ebeln)})
+                ebeln += 1
+                banfn += 1
         stock_end.append({"matnr": m, "werks": plant, "lgort": "0001",
                           "labst": round(max(0.0, stock), 3),
                           "open_po_qty": round(sum(q for _, q in pipeline), 3)})
@@ -472,17 +515,19 @@ def inject_anomalies(cfg: GenConfig, md: dict, po: pd.DataFrame, eban: pd.DataFr
     # 1. price spike: 40-200 % above normal
     for _ in range(counts["price_spike"]):
         i = take()
-        po.at[i, "netpr"] = round(po.at[i, "netpr"] * rng.uniform(1.4, 3.0), 2)
+        po.at[i, "netpr"] = round(po.at[i, "netpr"] * rng.uniform(1.35, 2.4), 2)
         labels.append({"ebeln": po.at[i, "ebeln"], "ebelp": "00010", "anomaly_type": "price_spike"})
     # 2. quantity outlier
     for _ in range(counts["quantity_outlier"]):
         i = take()
-        po.at[i, "menge"] = float(np.ceil(po.at[i, "menge"] * rng.uniform(4.0, 9.0)))
+        po.at[i, "menge"] = float(np.ceil(po.at[i, "menge"] * rng.uniform(2.5, 6.0)))
         labels.append({"ebeln": po.at[i, "ebeln"], "ebelp": "00010", "anomaly_type": "quantity_outlier"})
     # 3. impossible delivery date
     for _ in range(counts["short_lead_time"]):
         i = take()
-        po.at[i, "eindt"] = po.at[i, "created_at"].normalize() + pd.Timedelta(days=int(rng.integers(0, 2)))
+        normal = (po.at[i, "eindt"] - po.at[i, "created_at"].normalize()).days
+        po.at[i, "eindt"] = po.at[i, "created_at"].normalize() + pd.Timedelta(
+            days=int(max(1, round(normal * rng.uniform(0.05, 0.3)))))
         po.at[i, "gr_date"] = po.at[i, "eindt"] + pd.Timedelta(days=int(rng.integers(0, 3)))
         labels.append({"ebeln": po.at[i, "ebeln"], "ebelp": "00010", "anomaly_type": "short_lead_time"})
 
@@ -494,13 +539,15 @@ def inject_anomalies(cfg: GenConfig, md: dict, po: pd.DataFrame, eban: pd.DataFr
     for _, v in originals.iterrows():
         created = start + pd.Timedelta(days=int(rng.integers(90, max(91, (end - start).days - 120))))
         pan = v.stcd3[2:12]
-        same_bank = rng.random() < 0.6
+        mode = rng.choice(["same_bank", "same_pan", "fresh_ids"], p=[0.35, 0.3, 0.35])
         new = v.to_dict()
         new.update({
             "lifnr": str(next_lifnr), "name1": _dup_name(v.name1, rng),
             "stras": v.stras.replace("Plot", "Plot No.") if rng.random() < 0.6 else v.stras,
-            "stcd3": make_gstin(rng, v.stcd3[:2], pan=pan, entity="2") if not same_bank else v.stcd3,
-            "bank_ref": v.bank_ref if same_bank else v.bank_ref[:-3] + f"{rng.integers(0, 999):03d}",
+            "stcd3": v.stcd3 if mode == "same_bank" else make_gstin(
+                rng, v.stcd3[:2], pan=pan if mode == "same_pan" else None, entity="2"),
+            "bank_ref": v.bank_ref if mode == "same_bank" else (
+                v.bank_ref[:-3] + f"{rng.integers(0, 999):03d}" if mode == "same_pan" else _fake_bank_ref(rng)),
             "created_on": created.date().isoformat(),
         })
         vendors = pd.concat([vendors, pd.DataFrame([new])], ignore_index=True)
@@ -535,10 +582,10 @@ def inject_anomalies(cfg: GenConfig, md: dict, po: pd.DataFrame, eban: pd.DataFr
                "created_on": created.date().isoformat(), "vendor_type": typ, "groups": [],
                "price_level": 1.1, "lt_mean": 10.0, "reliability_sd": 3.0}
         vendors = pd.concat([vendors, pd.DataFrame([new])], ignore_index=True)
-        shell_vendors.append((str(next_lifnr), created, typ))
+        shell_vendors.append((str(next_lifnr), created, typ, rng.random() < 0.5))
         next_lifnr += 1
     for j in range(counts["offhours_new_vendor"]):
-        lifnr, created, typ = shell_vendors[j % len(shell_vendors)]
+        lifnr, created, typ, with_info = shell_vendors[j % len(shell_vendors)]
         cands = [i for i in po.index[(po.created_at > created + pd.Timedelta(days=2)) &
                                      (po.created_at < created + pd.Timedelta(days=75)) &
                                      (po.mtart == ("ROH" if typ == "RM" else "VERP"))]
@@ -558,6 +605,14 @@ def inject_anomalies(cfg: GenConfig, md: dict, po: pd.DataFrame, eban: pd.DataFr
         po.at[i, "netpr"] = round(po.at[i, "netpr"] * rng.uniform(0.98, 1.12), 2)
         po.at[i, "eindt"] = ts.normalize() + pd.Timedelta(days=int(rng.integers(5, 15)))
         po.at[i, "gr_date"] = po.at[i, "eindt"]
+        if with_info:  # the fraudster also created a purchasing info record
+            infnr = str(int(md["eina"].infnr.astype(int).max()) + 1)
+            md["eina"] = pd.concat([md["eina"], pd.DataFrame([{
+                "infnr": infnr, "matnr": po.at[i, "matnr"], "lifnr": lifnr, "created_on": created.date().isoformat(),
+                "is_primary": 0}])], ignore_index=True)
+            md["eine"] = pd.concat([md["eine"], pd.DataFrame([{
+                "infnr": infnr, "ekorg": C.PURCH_ORG, "netpr": po.at[i, "netpr"], "peinh": 1, "waers": "INR",
+                "aplfz": int(rng.integers(5, 15)), "valid_from": created.date().isoformat()}])], ignore_index=True)
         labels.append({"ebeln": po.at[i, "ebeln"], "ebelp": "00010", "anomaly_type": "offhours_new_vendor"})
 
     # 6. split POs: one requirement split into several POs just under the approval limit
@@ -572,11 +627,13 @@ def inject_anomalies(cfg: GenConfig, md: dict, po: pd.DataFrame, eban: pd.DataFr
         n_parts = int(rng.choice([2, 3, 3, 4]))
         buyer = C.BUYERS[int(rng.integers(len(C.BUYERS)))]
         day = base["created_at"].normalize() + pd.Timedelta(hours=int(rng.integers(10, 17)))
+        spread = rng.random() < 0.4  # smarter splitting: parts spread over consecutive days
         for k in range(n_parts):
-            target_val = thr * rng.uniform(0.86, 0.985)
+            target_val = thr * rng.uniform(0.8, 0.99)
             row = dict(base)
             row.update({"ebeln": str(next_ebeln), "menge": float(max(1.0, np.floor(target_val / base["netpr"]))),
-                        "created_at": day + pd.Timedelta(minutes=int(7 * k + rng.integers(1, 6))),
+                        "created_at": day + pd.Timedelta(days=k if spread else 0,
+                                                         minutes=int(7 * k + rng.integers(1, 6))),
                         "created_by": buyer, "banfn": str(next_banfn)})
             new_rows.append(row)
             new_pr.append({"banfn": str(next_banfn), "bnfpo": "00010", "matnr": base["matnr"],
@@ -661,7 +718,7 @@ def generate(cfg: GenConfig | None = None) -> dict[str, pd.DataFrame]:
     cfg = cfg or GenConfig()
     md = build_master_data(cfg)
     rng = np.random.default_rng(cfg.seed + 1 + cfg.id_offset)
-    afko, afpo = simulate_production(cfg, md, rng)
+    afko, afpo, plaf = simulate_production(cfg, md, rng)
     issues = derive_consumption(afko, afpo, md, rng, cfg)
     proc = simulate_procurement(cfg, md, issues, rng)
     po, eban = proc["po"], proc["eban"]
@@ -697,7 +754,7 @@ def generate(cfg: GenConfig | None = None) -> dict[str, pd.DataFrame]:
         "lfa1": lfa1, "mara": md["mara"], "makt": md["makt"], "marc": marc, "mard": proc["mard"],
         "eina": md["eina"], "eine": md["eine"], "eban": eban, "ekko": docs["ekko"], "ekpo": docs["ekpo"],
         "mkpf": docs["mkpf"], "mseg": docs["mseg"], "afko": afko_out, "afpo": afpo,
-        "stko": md["stko"], "stpo": md["stpo"], "anomaly_labels": labels,
+        "stko": md["stko"], "stpo": md["stpo"], "plaf": plaf, "anomaly_labels": labels,
     }
     for k, df in tables.items():
         tables[k] = df.reset_index(drop=True)

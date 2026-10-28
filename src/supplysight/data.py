@@ -24,6 +24,7 @@ FOREIGN_KEYS = [
     ("stko", "matnr", "mara", "matnr"),
     ("stpo", "idnrk", "mara", "matnr"),
     ("stpo", "stlnr", "stko", "stlnr"),
+    ("plaf", "matnr", "mara", "matnr"),
     ("anomaly_labels", "ebeln", "ekko", "ebeln"),
 ]
 

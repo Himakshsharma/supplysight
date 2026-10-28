@@ -47,6 +47,7 @@ SCHEMA: dict[str, tuple[dict[str, str], list[str]]] = {
     "afpo": ({"aufnr": T, "posnr": T, "matnr": T, "psmng": F, "wemng": F, "werks": T}, ["aufnr", "posnr"]),
     "stko": ({"stlnr": T, "matnr": T, "bmeng": F, "bmein": T}, ["stlnr"]),
     "stpo": ({"stlnr": T, "posnr": T, "idnrk": T, "menge": F, "meins": T}, ["stlnr", "posnr"]),
+    "plaf": ({"plnum": T, "matnr": T, "plwrk": T, "gsmng": F, "psttr": T, "paart": T}, ["plnum"]),
     "anomaly_labels": ({"ebeln": T, "ebelp": T, "anomaly_type": T}, ["ebeln", "ebelp"]),
     # ---- application tables written by the ML pipeline / API
     "po_scores": ({"ebeln": T, "ebelp": T, "lifnr": T, "matnr": T, "werks": T, "bedat": T, "netwr": F,
@@ -58,15 +59,17 @@ SCHEMA: dict[str, tuple[dict[str, str], list[str]]] = {
                                  "sigma": F, "lead_time_days": I, "safety_stock": F, "recommended_rop": F,
                                  "current_minbe": F, "current_stock": F, "open_po_qty": F,
                                  "weeks_of_cover": F, "stockout_risk": T, "rop_gap_pct": F}, ["matnr", "werks"]),
+    "demand_forecast": ({"matnr": T, "werks": T, "week": T, "yhat": F, "p10": F, "p90": F,
+                         "model_version": T}, ["matnr", "werks", "week"]),
     "review_feedback": ({"id": T, "ebeln": T, "ebelp": T, "verdict": T, "comment": T, "reviewer": T,
                          "reviewed_at": T}, ["id"]),
 }
-SOURCE_TABLES = [t for t in SCHEMA if t not in ("po_scores", "vendor_duplicates", "reorder_recommendations",
-                                                "review_feedback")]
+APP_TABLES = ("po_scores", "vendor_duplicates", "reorder_recommendations", "demand_forecast", "review_feedback")
+SOURCE_TABLES = [t for t in SCHEMA if t not in APP_TABLES]
 # tables the copilot SQL tool may read (labels and feedback are deliberately excluded)
 COPILOT_TABLES = ["lfa1", "mara", "makt", "marc", "mard", "eina", "eine", "eban", "ekko", "ekpo",
-                  "mseg", "mkpf", "afko", "afpo", "stko", "stpo", "po_scores", "reorder_recommendations",
-                  "vendor_duplicates"]
+                  "mseg", "mkpf", "afko", "afpo", "stko", "stpo", "plaf", "po_scores", "reorder_recommendations",
+                  "vendor_duplicates", "demand_forecast"]
 
 
 def _sqlite_path(url: str) -> Path:
