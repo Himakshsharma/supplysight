@@ -41,7 +41,7 @@ class Settings:
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = int(_env("JWT_EXPIRY_MINUTES", "480"))
     gemini_api_key: str = _env("GEMINI_API_KEY", "")
-    gemini_model: str = _env("GEMINI_MODEL", "gemini-1.5-flash")
+    gemini_model: str = _env("GEMINI_MODEL", "gemini-2.5-flash")
     mlflow_tracking_uri: str = _env("MLFLOW_TRACKING_URI", "")
     api_url: str = _env("SUPPLYSIGHT_API_URL", "")
     approval_threshold_inr: float = float(_env("APPROVAL_THRESHOLD_INR", "500000"))
