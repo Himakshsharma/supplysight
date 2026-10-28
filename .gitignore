@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env
+.venv/
+venv/
+data/raw/
+data/drift/
+data/*.db
+artifacts/*
+!artifacts/.gitkeep
+mlruns/
+mlartifacts/
+*.egg-info/
