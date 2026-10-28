@@ -5,6 +5,9 @@
 > simulated. Vendor names, GSTINs and bank references are invented (GSTINs are format-valid but fake). See
 > [docs/DATA_PRIVACY.md](docs/DATA_PRIVACY.md).
 
+**Live demo:** https://supplysight.streamlit.app (sign in with any demo user, e.g. `manager` / `manager123`; the
+first visit after the app has been idle takes about a minute while it rebuilds the synthetic data and models)
+
 **The problem.** A mid-sized cosmetics plant running SAP MM/PP loses money in two quiet ways: risky purchase orders
 (price spikes, split POs to dodge approval limits, duplicate or brand-new vendors, impossible delivery dates) slip
 through because nobody can review thousands of POs by hand, and reorder points in `MARC` go stale while festive,
@@ -202,7 +205,7 @@ supplysight/
 │   ├── services/                # auth (JWT, roles) and business services shared by API + UI
 │   ├── api/                     # FastAPI app, schemas, routes
 │   └── pipeline.py              # train → evaluate → register → publish
-├── dashboard/                   # Streamlit app + 5 pages
+├── dashboard/                   # Streamlit entry point (app.py), overview and 5 pages
 ├── scripts/                     # generate_data, train_all, evaluate_all, simulate_drift, retrain, charts, screenshots
 ├── docs/                        # architecture, data dictionary, privacy, model cards, copilot eval, interview notes, SOPs
 ├── notebooks/01_eda.ipynb       # EDA only (never required by the pipeline)

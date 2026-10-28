@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 DASH = Path(__file__).resolve().parents[1] / "dashboard"
-PAGES = [DASH / "app.py"] + sorted((DASH / "pages").glob("*.py"))
+PAGES = [DASH / "overview.py"] + sorted((DASH / "pages").glob("*.py"))
 USER = {"username": "manager", "role": "manager", "name": "Test Manager"}
 
 
@@ -37,3 +37,13 @@ def test_page_renders(page, trained, monkeypatch):
         pass
     assert "set_page_config" in st._calls
     assert any(c in st._calls for c in ("dataframe", "metric", "plotly_chart", "markdown"))
+
+
+def test_navigation_lists_every_page():
+    """The entry point registers every page file that exists (and no missing ones)."""
+    import re
+
+    entry = (DASH / "app.py").read_text(encoding="utf-8")
+    listed = set(re.findall(r'st\.Page\(\s*"([^"]+)"', entry))
+    on_disk = {p.relative_to(DASH).as_posix() for p in PAGES}
+    assert listed == on_disk

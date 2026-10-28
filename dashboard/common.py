@@ -277,8 +277,29 @@ def _ensure_demo_state() -> bool:
         return ensure_demo_state()
 
 
+def _login_form() -> dict:
+    """Sign-in form in the main area (visible on phones, where the sidebar starts collapsed)."""
+    st.title("SupplySight")
+    st.markdown("AI-powered procurement and demand intelligence for SAP MM/PP. **All data is synthetic.**")
+    left, _ = st.columns([2, 3])
+    with left, st.form("login"):
+        u = st.selectbox(
+            "Demo user",
+            ["manager", "buyer", "planner", "admin"],
+            help="manager can review flags · buyer scores POs · planner sees forecasts · admin sees GSTINs",
+        )
+        p = st.text_input("Password", value=f"{u}123", type="password", help="Demo passwords are <username>123")
+        if submit("Sign in", icon=":material/login:", type="primary"):
+            user = client().login(u, p)
+            if user:
+                st.session_state["user"] = user
+                st.rerun()
+            st.error("That password doesn't match. Demo passwords are the username followed by 123.")
+    st.stop()
+
+
 def page_setup(title: str, icon: str = ":material/inventory_2:") -> dict:
-    """Page config + sidebar login. Returns the current user dict. `icon` is a Material Symbols shortcode."""
+    """Page config, first-start bootstrap and sign-in. Returns the current user dict. `icon` is a Material Symbols shortcode."""
     st.set_page_config(page_title=f"SupplySight · {title}", page_icon=icon, layout="wide")
     st.markdown(_CSS, unsafe_allow_html=True)
     if client().mode == "direct":
@@ -286,19 +307,8 @@ def page_setup(title: str, icon: str = ":material/inventory_2:") -> dict:
     with st.sidebar:
         st.markdown("<p class='ss-wordmark'>SupplySight</p>", unsafe_allow_html=True)
         st.caption("AI procurement & demand intelligence for SAP MM/PP · **synthetic data only**")
-        user = st.session_state.get("user")
-        if user is None:
-            with st.form("login"):
-                u = st.selectbox("Demo user", ["manager", "buyer", "planner", "admin"])
-                p = st.text_input("Password", value=f"{u}123", type="password", help="Demo passwords are <username>123")
-                if submit("Sign in", icon=":material/login:", type="primary"):
-                    user = client().login(u, p)
-                    if user:
-                        st.session_state["user"] = user
-                        st.rerun()
-                    else:
-                        st.error("That password doesn't match. Demo passwords are the username followed by 123.")
-            st.stop()
+    user = st.session_state.get("user") or _login_form()
+    with st.sidebar:
         st.markdown(f"**{user['name']}**")
         st.caption(f"Role: **{user['role']}** · data via {client().mode}")
         if st.button("Sign out", icon=":material/logout:"):
