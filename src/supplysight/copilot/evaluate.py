@@ -76,6 +76,8 @@ def evaluate_copilot(gold: list[dict] | None = None) -> dict:
     df = pd.DataFrame(rows)
 
     def mean(col: str, mask=None) -> float:
+        if col not in df:
+            return float("nan")
         s = df.loc[mask, col] if mask is not None else df[col]
         s = s.dropna()
         return float(s.astype(float).mean()) if len(s) else float("nan")

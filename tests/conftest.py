@@ -35,9 +35,11 @@ def tmp_env(tmp_path_factory):
     os.environ["DATABASE_URL"] = f"sqlite:///{(base / 'data' / 'test.db').as_posix()}"
     os.environ["JWT_SECRET"] = "test-secret-key-for-unit-tests-only-32b"
     os.environ.pop("GEMINI_API_KEY", None)
-    from supplysight.config import reset_settings_cache
+    from supplysight.config import get_settings, reset_settings_cache
 
     reset_settings_cache()
+    s = get_settings()
+    assert str(base) in s.database_url and str(base) in str(s.artifacts_dir), "tests must not touch real data"
     yield base
 
 

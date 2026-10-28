@@ -140,7 +140,7 @@ class AnomalyDetector:
         reasons = []
         for i, (idx, r) in enumerate(f.iterrows()):
             rs = list(out.at[idx, "rule_reasons"])
-            if out.at[idx, "ml_tail"] > 0.05 or len(rs) < top_k:
+            if out.at[idx, "ml_tail"] > 0.05 or (rs and out.at[idx, "rule_score"] >= 0.5):
                 for j in np.argsort(-contrib[i]):
                     if contrib[i, j] < 2.5 or len(rs) >= top_k:
                         break

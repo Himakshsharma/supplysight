@@ -26,30 +26,33 @@ def _env(name: str, default: str) -> str:
     return value if value not in (None, "") else default
 
 
+def _from_env(name: str, default: str, cast=str):
+    """Field whose value is read from the environment when Settings() is created."""
+    return field(default_factory=lambda: cast(_env(name, default)))
+
+
 @dataclass(frozen=True)
 class Settings:
-    """Runtime settings resolved from the environment."""
+    """Runtime settings resolved from the environment (read at instantiation time)."""
 
-    seed: int = int(_env("SEED", "42"))
-    data_dir: Path = Path(_env("SUPPLYSIGHT_DATA_DIR", str(PROJECT_ROOT / "data")))
-    artifacts_dir: Path = Path(_env("SUPPLYSIGHT_ARTIFACTS_DIR", str(PROJECT_ROOT / "artifacts")))
-    docs_dir: Path = PROJECT_ROOT / "docs"
-    database_url: str = _env(
-        "DATABASE_URL", f"sqlite:///{(PROJECT_ROOT / 'data' / 'supplysight.db').as_posix()}"
-    )
-    jwt_secret: str = _env("JWT_SECRET", "change-me-in-production-please-32b")
+    seed: int = _from_env("SEED", "42", int)
+    data_dir: Path = _from_env("SUPPLYSIGHT_DATA_DIR", str(PROJECT_ROOT / "data"), Path)
+    artifacts_dir: Path = _from_env("SUPPLYSIGHT_ARTIFACTS_DIR", str(PROJECT_ROOT / "artifacts"), Path)
+    docs_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "docs")
+    database_url: str = _from_env("DATABASE_URL", f"sqlite:///{(PROJECT_ROOT / 'data' / 'supplysight.db').as_posix()}")
+    jwt_secret: str = _from_env("JWT_SECRET", "change-me-in-production-please-32b")
     jwt_algorithm: str = "HS256"
-    jwt_expiry_minutes: int = int(_env("JWT_EXPIRY_MINUTES", "480"))
-    gemini_api_key: str = _env("GEMINI_API_KEY", "")
-    gemini_model: str = _env("GEMINI_MODEL", "gemini-2.5-flash")
-    mlflow_tracking_uri: str = _env("MLFLOW_TRACKING_URI", "")
-    api_url: str = _env("SUPPLYSIGHT_API_URL", "")
-    approval_threshold_inr: float = float(_env("APPROVAL_THRESHOLD_INR", "500000"))
-    sql_row_limit: int = int(_env("SQL_ROW_LIMIT", "200"))
-    sql_timeout_s: float = float(_env("SQL_TIMEOUT_S", "5"))
-    nn_backend: str = _env("SUPPLYSIGHT_NN_BACKEND", "auto")  # auto | torch | sklearn
-    gbm_backend: str = _env("SUPPLYSIGHT_GBM_BACKEND", "auto")  # auto | lightgbm | sklearn
-    embedding_backend: str = _env("SUPPLYSIGHT_EMBEDDINGS", "auto")  # auto | st | lsa
+    jwt_expiry_minutes: int = _from_env("JWT_EXPIRY_MINUTES", "480", int)
+    gemini_api_key: str = _from_env("GEMINI_API_KEY", "")
+    gemini_model: str = _from_env("GEMINI_MODEL", "gemini-2.5-flash")
+    mlflow_tracking_uri: str = _from_env("MLFLOW_TRACKING_URI", "")
+    api_url: str = _from_env("SUPPLYSIGHT_API_URL", "")
+    approval_threshold_inr: float = _from_env("APPROVAL_THRESHOLD_INR", "500000", float)
+    sql_row_limit: int = _from_env("SQL_ROW_LIMIT", "200", int)
+    sql_timeout_s: float = _from_env("SQL_TIMEOUT_S", "5", float)
+    nn_backend: str = _from_env("SUPPLYSIGHT_NN_BACKEND", "auto")  # auto | torch | sklearn
+    gbm_backend: str = _from_env("SUPPLYSIGHT_GBM_BACKEND", "auto")  # auto | lightgbm | sklearn
+    embedding_backend: str = _from_env("SUPPLYSIGHT_EMBEDDINGS", "auto")  # auto | st | lsa
     extra: dict = field(default_factory=dict)
 
     @property

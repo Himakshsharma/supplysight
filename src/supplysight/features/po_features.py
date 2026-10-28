@@ -94,9 +94,11 @@ def build_po_features(items: pd.DataFrame, weekly: pd.DataFrame | None, dup_scor
     df["is_offhours"] = ((df.hour < 8) | (df.hour >= 20)).astype(int)
 
     # --- requester behaviour
-    df["_one"] = 1.0
+    df["_one"], df["_all"] = 1.0, "all"
     freq = _rolling_past(df, ["created_by"], "_one", "30D", "sum").fillna(0)
-    df["requester_freq"] = (freq / max(1.0, freq.mean())).values
+    total = _rolling_past(df, ["_all"], "_one", "30D", "sum").fillna(0)
+    # share of all POs in the previous 30 days created by this buyer (past-only, no global stats)
+    df["requester_freq"] = (freq / total.clip(lower=1.0)).values
     df["value_to_threshold"] = df.netwr / approval_threshold
 
     # --- split-PO cluster: same day, buyer, vendor and material
@@ -122,4 +124,4 @@ def build_po_features(items: pd.DataFrame, weekly: pd.DataFrame | None, dup_scor
     df["log_lt_ratio"] = np.log(df.lt_ratio.clip(0.01, 20))
     df["log_vendor_prior_pos"] = np.log1p(df.vendor_prior_pos)
     df[ML_FEATURES] = df[ML_FEATURES].astype(float).fillna(0.0)
-    return df.drop(columns=["_one"])
+    return df.drop(columns=["_one", "_all"])
