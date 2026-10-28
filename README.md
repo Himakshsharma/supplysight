@@ -1,6 +1,6 @@
 # SupplySight – AI-Powered Procurement and Demand Intelligence for SAP ERP
 
-> **⚠️ All data in this project is synthetic.** It is produced by a seeded generator in this repository
+> **All data in this project is synthetic.** It is produced by a seeded generator in this repository
 > (`src/supplysight/datagen`). No real company, vendor, employee, price or transaction data is used, requested or
 > simulated. Vendor names, GSTINs and bank references are invented (GSTINs are format-valid but fake). See
 > [docs/DATA_PRIVACY.md](docs/DATA_PRIVACY.md).
@@ -15,9 +15,9 @@ SupplySight puts three AI capabilities on one shared data platform:
 
 | Capability | What it does | Main techniques |
 |---|---|---|
-| 🚨 **PO anomaly detection** | Scores every PO item, assigns Low/Medium/High risk and gives the **top 3 human-readable reasons** | Rules + fuzzy duplicate-vendor matching + Isolation Forest + autoencoder, ECDF-calibrated noisy-OR ensemble |
-| 📈 **Demand forecasting & reorder points** | Weekly consumption forecast per material/plant with P10–P90 bands; recommends safety stock and reorder points vs SAP `MINBE`; flags stock-out risk | Global gradient-boosted model (LightGBM or sklearn HGB), rolling-origin backtest, conformal intervals |
-| 💬 **Procurement copilot** | Answers questions about data (“Which vendor supplies glycerin and what's the lead time?”), process (“What's the SOP for urgent POs?”) and insights (“Which materials may stock out?”) **with citations** | Router → guarded text-to-SQL / hybrid BM25 + dense RAG (RRF) / model outputs; read-only SQL guardrails, injection blocking, PII masking |
+| **PO anomaly detection** | Scores every PO item, assigns Low/Medium/High risk and gives the **top 3 human-readable reasons** | Rules + fuzzy duplicate-vendor matching + Isolation Forest + autoencoder, ECDF-calibrated noisy-OR ensemble |
+| **Demand forecasting & reorder points** | Weekly consumption forecast per material/plant with P10–P90 bands; recommends safety stock and reorder points vs SAP `MINBE`; flags stock-out risk | Global gradient-boosted model (LightGBM or sklearn HGB), rolling-origin backtest, conformal intervals |
+| **Procurement copilot** | Answers questions about data (“Which vendor supplies glycerin and what's the lead time?”), process (“What's the SOP for urgent POs?”) and insights (“Which materials may stock out?”) **with citations** | Router → guarded text-to-SQL / hybrid BM25 + dense RAG (RRF) / model outputs; read-only SQL guardrails, injection blocking, PII masking |
 
 Around them: a FastAPI service with JWT roles, a six-page Streamlit dashboard, a model registry with
 MLflow mirroring, drift monitoring (PSI/KS, optional Evidently) and champion/challenger retraining that uses analyst
@@ -123,15 +123,18 @@ retrain.
 | Page | What you see |
 |---|---|
 | **Overview** | Spend KPIs, open POs, high-risk flags, stock-out risk, monthly spend vs flags, spend by material group |
-| **Anomaly Review Queue** | Filterable flags with risk badges and reasons, component scores, ✅/❎ review buttons (manager/admin), “score a new PO” form |
+| **Anomaly Review Queue** | Filterable flags with risk badges and reasons, component scores, True issue / False positive review buttons (manager/admin), “score a new PO” form |
 | **Vendor Duplicates** | Suspected duplicate vendor records side by side with the evidence (name %, address %, GSTIN/PAN/bank) |
 | **Demand & Reorder** | Forecast chart with P10–P90 band, recommended vs current reorder point, safety stock, weeks of cover, CSV export |
 | **Copilot Chat** | Chat with route, latency, citations and the SQL used; example questions |
 | **Model Health** | Production versions and metrics, drift summary, PSI per feature, full drift report, backtest tables, run history |
 
 Screenshots: start the dashboard and run `python scripts/capture_screenshots.py` (Playwright) to write
-`docs/images/screenshot_*.png`. The authoring sandbox could not install Streamlit, so no screenshots are committed.
-Every page is still smoke-tested in CI (`tests/test_dashboard_smoke.py`).
+`docs/images/screenshot_*.png`. Every page is smoke-tested in CI (`tests/test_dashboard_smoke.py`).
+
+**Design system.** The dashboard follows [DESIGN.md](DESIGN.md): one blue accent, risk colours used only for meaning
+(all WCAG AA with white text), Material Symbols icons, human-readable table headers, and Plotly charts themed to match
+Streamlit. Tokens live in `dashboard/common.py` and `.streamlit/config.toml`.
 
 <p>
 <img src="docs/images/eda_seasonality.png" width="49%"> <img src="docs/images/drift_psi.png" width="49%">

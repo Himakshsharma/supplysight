@@ -1,5 +1,10 @@
+# Theme tokens mirror dashboard/common.py and DESIGN.md – change all three together.
 [theme]
+base = "light"
 primaryColor = "#2563eb"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f1f5f9"
+textColor = "#0f172a"
 font = "sans serif"
 
 [server]
