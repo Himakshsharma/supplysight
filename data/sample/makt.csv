@@ -1,0 +1,201 @@
+matnr,maktx,spras
+100001,Glycerin IP 99.5%,EN
+100002,Propylene Glycol USP,EN
+100003,Butylene Glycol,EN
+100004,Sorbitol 70% Solution,EN
+100005,Sodium Hyaluronate,EN
+100006,Cetyl Alcohol,EN
+100007,Cetostearyl Alcohol,EN
+100008,Stearic Acid Triple Pressed,EN
+100009,Isopropyl Myristate,EN
+100010,Caprylic Capric Triglyceride,EN
+100011,Light Liquid Paraffin,EN
+100012,White Soft Paraffin,EN
+100013,Dimethicone 350 cst,EN
+100014,Cyclopentasiloxane,EN
+100015,Shea Butter Refined,EN
+100016,Cocoa Butter Deodorised,EN
+100017,Mango Butter,EN
+100018,Kokum Butter,EN
+100019,Beeswax White,EN
+100020,Candelilla Wax,EN
+100021,Carnauba Wax T1,EN
+100022,Microcrystalline Wax,EN
+100023,Ozokerite Wax,EN
+100024,Glyceryl Stearate SE,EN
+100025,Polysorbate 20,EN
+100026,Polysorbate 80,EN
+100027,Ceteareth-20,EN
+100028,PEG-100 Stearate,EN
+100029,Cetearyl Glucoside,EN
+100030,Sodium Laureth Sulfate 70%,EN
+100031,Cocamidopropyl Betaine,EN
+100032,Sodium Lauroyl Sarcosinate,EN
+100033,Decyl Glucoside,EN
+100034,Coco Glucoside,EN
+100035,Carbomer 940,EN
+100036,Xanthan Gum,EN
+100037,Hydroxyethyl Cellulose,EN
+100038,Sodium Chloride Pure,EN
+100039,Triethanolamine 99%,EN
+100040,Citric Acid Monohydrate,EN
+100041,Sodium Hydroxide Pellets,EN
+100042,Phenoxyethanol,EN
+100043,Ethylhexylglycerin,EN
+100044,Sodium Benzoate,EN
+100045,Potassium Sorbate,EN
+100046,Disodium EDTA,EN
+100047,Tocopheryl Acetate (Vit E),EN
+100048,Niacinamide,EN
+100049,Panthenol D,EN
+100050,Allantoin,EN
+100051,Aloe Vera Extract 200X,EN
+100052,Salicylic Acid,EN
+100053,Kojic Acid Dipalmitate,EN
+100054,Ascorbyl Glucoside,EN
+100055,Retinyl Palmitate,EN
+100056,Ceramide NP,EN
+100057,Hydrolysed Keratin,EN
+100058,Biotin,EN
+100059,Saffron Extract,EN
+100060,Turmeric Extract,EN
+100061,Neem Extract,EN
+100062,Sandalwood Oil,EN
+100063,Almond Oil Sweet,EN
+100064,Coconut Oil Virgin,EN
+100065,Jojoba Oil Golden,EN
+100066,Argan Oil,EN
+100067,Castor Oil BSS,EN
+100068,Sunflower Oil Refined,EN
+100069,Avobenzone,EN
+100070,Octocrylene,EN
+100071,Ethylhexyl Methoxycinnamate,EN
+100072,Zinc Oxide Nano,EN
+100073,Titanium Dioxide Coated,EN
+100074,Iron Oxide Red,EN
+100075,Iron Oxide Yellow,EN
+100076,Iron Oxide Black,EN
+100077,D&C Red 7 Lake,EN
+100078,FD&C Yellow 5 Lake,EN
+100079,Mica Pearl White,EN
+100080,Talc Cosmetic Grade,EN
+100081,Kaolin Clay,EN
+100082,Silica Microspheres,EN
+100083,Fragrance Oil Rose Musk,EN
+100084,Fragrance Oil Citrus Fresh,EN
+100085,Fragrance Oil Jasmine,EN
+100086,Fragrance Oil Lavender,EN
+100087,Fragrance Oil Oud Royale,EN
+100088,Fragrance Oil Aqua Marine,EN
+100089,Fragrance Oil Vanilla,EN
+100090,Fragrance Oil Baby Powder,EN
+100091,Menthol Crystals,EN
+100092,Purified Water (DM) Additive,EN
+100093,Sodium Hyaluronate (Imported),EN
+100094,Cetyl Alcohol - Organic,EN
+100095,Cetostearyl Alcohol - Ecocert,EN
+100096,Stearic Acid Triple Pressed Premium Grade,EN
+100097,Isopropyl Myristate (Imported),EN
+100098,White Soft Paraffin - Organic,EN
+100099,Dimethicone 350 cst - Ecocert,EN
+100100,Shea Butter Refined Premium Grade,EN
+100101,Kokum Butter (Imported),EN
+100102,Microcrystalline Wax - Organic,EN
+100103,Ozokerite Wax - Ecocert,EN
+100104,Glyceryl Stearate SE Premium Grade,EN
+100105,Polysorbate 80 (Imported),EN
+100106,Sodium Laureth Sulfate 70% - Organic,EN
+100107,Cocamidopropyl Betaine - Ecocert,EN
+100108,Sodium Lauroyl Sarcosinate Premium Grade,EN
+100109,Decyl Glucoside (Imported),EN
+100110,Coco Glucoside - Organic,EN
+100111,Carbomer 940 - Ecocert,EN
+100112,Sodium Chloride Pure Premium Grade,EN
+100113,Sodium Hydroxide Pellets (Imported),EN
+100114,Sodium Benzoate - Organic,EN
+100115,Potassium Sorbate - Ecocert,EN
+100116,Disodium EDTA Premium Grade,EN
+100117,Tocopheryl Acetate (Vit E) (Imported),EN
+100118,Panthenol D - Organic,EN
+100119,Kojic Acid Dipalmitate - Ecocert,EN
+100120,Ascorbyl Glucoside Premium Grade,EN
+100121,Retinyl Palmitate (Imported),EN
+100122,Ceramide NP - Organic,EN
+100123,Hydrolysed Keratin - Ecocert,EN
+100124,Neem Extract Premium Grade,EN
+100125,Almond Oil Sweet (Imported),EN
+100126,Jojoba Oil Golden - Organic,EN
+100127,Castor Oil BSS - Ecocert,EN
+100128,Octocrylene Premium Grade,EN
+100129,Zinc Oxide Nano (Imported),EN
+100130,Titanium Dioxide Coated - Organic,EN
+100131,Iron Oxide Red - Ecocert,EN
+100132,Iron Oxide Black Premium Grade,EN
+100133,Talc Cosmetic Grade (Imported),EN
+100134,Silica Microspheres - Organic,EN
+100135,Fragrance Oil Rose Musk - Ecocert,EN
+100136,Fragrance Oil Lavender Premium Grade,EN
+100137,Fragrance Oil Vanilla (Imported),EN
+100138,Fragrance Oil Baby Powder - Organic,EN
+200001,PET Bottle 100 ml Clear,EN
+200002,PET Bottle 200 ml White,EN
+200003,HDPE Bottle 400 ml,EN
+200004,HDPE Bottle 650 ml,EN
+200005,Glass Dropper Bottle 30 ml,EN
+200006,Acrylic Jar 50 g,EN
+200007,PP Jar 100 g,EN
+200008,PP Jar 200 g,EN
+200009,Lami Tube 50 g,EN
+200010,Lami Tube 100 g,EN
+200011,LDPE Tube 75 ml,EN
+200012,Lipstick Case Gold,EN
+200013,Lipstick Case Matte Black,EN
+200014,Compact Case 9 g,EN
+200015,Flip Top Cap 24 mm,EN
+200016,Disc Top Cap 28 mm,EN
+200017,Pump Dispenser 24/410,EN
+200018,Screw Cap 63 mm,EN
+200019,Dropper Assembly 18 mm,EN
+200020,Mono Carton Cream 50 g,EN
+200021,Mono Carton Lotion 200 ml,EN
+200022,Mono Carton Serum 30 ml,EN
+200023,Mono Carton Lipstick,EN
+200024,Mono Carton Sunscreen,EN
+200025,Shipper Carton 5 Ply,EN
+200026,Front Label BOPP Shampoo,EN
+200027,Front Label BOPP Lotion,EN
+200028,Back Label Generic,EN
+200029,Shrink Sleeve PVC,EN
+200030,Induction Seal Wad,EN
+200031,PET Bottle 100 ml Clear - Amber,EN
+200032,PET Bottle 200 ml White - Printed,EN
+200033,HDPE Bottle 400 ml - Recycled PCR,EN
+200034,HDPE Bottle 650 ml - Matte,EN
+200035,Glass Dropper Bottle 30 ml - Amber,EN
+200036,Acrylic Jar 50 g - Printed,EN
+200037,PP Jar 100 g - Recycled PCR,EN
+200038,PP Jar 200 g - Matte,EN
+200039,Lami Tube 50 g - Amber,EN
+200040,Lami Tube 100 g - Printed,EN
+200041,LDPE Tube 75 ml - Recycled PCR,EN
+200042,Lipstick Case Gold - Matte,EN
+200043,Lipstick Case Matte Black - Amber,EN
+200044,Compact Case 9 g - Printed,EN
+200045,Flip Top Cap 24 mm - Recycled PCR,EN
+200046,Disc Top Cap 28 mm - Matte,EN
+200047,Pump Dispenser 24/410 - Amber,EN
+200048,Screw Cap 63 mm - Printed,EN
+200049,Dropper Assembly 18 mm - Recycled PCR,EN
+200050,Mono Carton Cream 50 g - Matte,EN
+200051,Mono Carton Lotion 200 ml - Amber,EN
+200052,Mono Carton Serum 30 ml - Printed,EN
+200053,Mono Carton Lipstick - Recycled PCR,EN
+200054,Mono Carton Sunscreen - Matte,EN
+200055,Shipper Carton 5 Ply - Amber,EN
+200056,Front Label BOPP Shampoo - Printed,EN
+200057,Front Label BOPP Lotion - Recycled PCR,EN
+200058,Back Label Generic - Matte,EN
+200059,Shrink Sleeve PVC - Amber,EN
+200060,Induction Seal Wad - Printed,EN
+300001,Saffron Glow Day Cream 50 g,EN
+300002,Saffron Glow Night Cream 50 g,EN

@@ -1,0 +1,24 @@
+# Render blueprint (free tier): one web service runs the API, one the dashboard.
+# The build step generates synthetic data and trains models (SQLite on the instance disk).
+services:
+  - type: web
+    name: supplysight-api
+    runtime: python
+    plan: free
+    buildCommand: pip install ".[serve]" && python run.py data train
+    startCommand: uvicorn supplysight.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: JWT_SECRET
+        generateValue: true
+  - type: web
+    name: supplysight-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install ".[serve]" && python run.py data train
+    startCommand: streamlit run dashboard/app.py --server.port $PORT --server.address 0.0.0.0
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9

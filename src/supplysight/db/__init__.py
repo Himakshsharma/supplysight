@@ -72,6 +72,9 @@ COPILOT_TABLES = ["lfa1", "mara", "makt", "marc", "mard", "eina", "eine", "eban"
                   "vendor_duplicates", "demand_forecast"]
 
 
+_ENGINES: dict[str, Any] = {}
+
+
 def _sqlite_path(url: str) -> Path:
     return Path(url.replace("sqlite:///", "", 1))
 
@@ -108,8 +111,10 @@ def connect(readonly: bool = False, url: str | None = None) -> Iterator[Any]:
         return
     sa = optional_import("sqlalchemy")
     if sa is None:  # pragma: no cover
-        raise RuntimeError("Non-SQLite DATABASE_URL requires SQLAlchemy (pip install '.[full]')")
-    engine = sa.create_engine(url, pool_pre_ping=True)
+        raise RuntimeError("Non-SQLite DATABASE_URL requires SQLAlchemy (pip install '.[serve]')")
+    engine = _ENGINES.get(url)
+    if engine is None:  # pragma: no cover
+        engine = _ENGINES[url] = sa.create_engine(url, pool_pre_ping=True)
     with engine.connect() as conn:  # pragma: no cover - exercised in docker-compose
         if readonly:
             conn.exec_driver_sql("SET TRANSACTION READ ONLY")
@@ -122,17 +127,31 @@ def connect(readonly: bool = False, url: str | None = None) -> Iterator[Any]:
 def init_db(drop: bool = False) -> None:
     """Create all tables (optionally dropping them first)."""
     with connect() as conn:
+        if not isinstance(conn, sqlite3.Connection):  # pragma: no cover
+            for stmt in PG_HELPERS:
+                _exec(conn, stmt)
         for t in SCHEMA:
             if drop:
                 _exec(conn, f"DROP TABLE IF EXISTS {t}")
             _exec(conn, ddl(t))
 
 
+def _pg(sql: str) -> str:
+    """Translate SQLite '?' placeholders to the psycopg2 paramstyle."""
+    return sql.replace("%", "%%").replace("?", "%s")
+
+
 def _exec(conn: Any, sql: str, params: Any = None) -> None:
     if isinstance(conn, sqlite3.Connection):
         conn.execute(sql, params or ())
     else:  # pragma: no cover
-        conn.exec_driver_sql(sql, params or ())
+        conn.exec_driver_sql(_pg(sql) if params else sql, tuple(params) if params else None)
+
+
+PG_HELPERS = [  # keep SQLite-style SQL portable on PostgreSQL
+    "CREATE OR REPLACE FUNCTION round(double precision, integer) RETURNS numeric "
+    "AS $$ SELECT round($1::numeric, $2) $$ LANGUAGE SQL IMMUTABLE",
+]
 
 
 def write_table(name: str, df: pd.DataFrame, replace: bool = True) -> None:
@@ -158,6 +177,8 @@ def load_tables(tables: dict[str, pd.DataFrame]) -> None:
 def read_sql(sql: str, params: Any = None, readonly: bool = True) -> pd.DataFrame:
     """Run a query and return a DataFrame."""
     with connect(readonly=readonly) as conn:
+        if params and not isinstance(conn, sqlite3.Connection):  # pragma: no cover
+            return pd.read_sql_query(_pg(sql), conn, params=tuple(params))
         return pd.read_sql_query(sql, conn, params=params)
 
 

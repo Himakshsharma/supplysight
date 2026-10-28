@@ -1,0 +1,76 @@
+# docker compose up --build   ->  API http://localhost:8000/docs · dashboard http://localhost:8501 · MLflow http://localhost:5000
+x-app: &app
+  build: .
+  image: supplysight:latest
+  env_file:
+    - path: .env
+      required: false
+  environment: &appenv
+    DATABASE_URL: postgresql+psycopg2://supplysight:supplysight@postgres:5432/supplysight
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    SUPPLYSIGHT_ARTIFACTS_DIR: /app/artifacts
+    SUPPLYSIGHT_DATA_DIR: /app/data
+  volumes:
+    - artifacts:/app/artifacts
+    - appdata:/app/data
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: supplysight
+      POSTGRES_PASSWORD: supplysight
+      POSTGRES_DB: supplysight
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supplysight"]
+      interval: 5s
+      retries: 20
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.16.2
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --serve-artifacts --artifacts-destination /mlflow/artifacts
+    ports: ["5000:5000"]
+    volumes: [mlflow:/mlflow]
+
+  trainer:            # one-shot: generate data, train, drift report, evaluation
+    <<: *app
+    command: ["make", "all", "PY=python"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      mlflow: {condition: service_started}
+    restart: "no"
+
+  api:
+    <<: *app
+    environment:
+      <<: *appenv
+      ROLE: api
+    command: ["uvicorn", "supplysight.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      retries: 10
+    depends_on:
+      trainer: {condition: service_completed_successfully}
+
+  dashboard:
+    <<: *app
+    environment:
+      <<: *appenv
+      SUPPLYSIGHT_API_URL: http://api:8000
+    command: ["streamlit", "run", "dashboard/app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+    ports: ["8501:8501"]
+    depends_on:
+      api: {condition: service_healthy}
+
+volumes:
+  pgdata:
+  mlflow:
+  artifacts:
+  appdata:

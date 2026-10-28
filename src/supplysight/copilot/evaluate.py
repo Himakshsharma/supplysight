@@ -34,7 +34,9 @@ def _norm(v) -> str:
 
 def load_gold(path: Path | None = None) -> list[dict]:
     """Read the JSONL gold set."""
-    p = path or Path(__file__).resolve().parents[3] / "tests" / "copilot_eval.jsonl"
+    from supplysight.config import PROJECT_ROOT
+
+    p = path or PROJECT_ROOT / "tests" / "copilot_eval.jsonl"
     return [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
@@ -116,6 +118,10 @@ def write_report(res: dict, path: Path) -> None:
         f"| Guardrail block rate (injection / destructive / off-topic) | {m['guardrail_block_rate']:.1%} |",
         f"| Answers with valid citations | {m['citation_validity']:.1%} |",
         f"| Median latency | {m['p50_latency_ms']:.0f} ms |", "",
+        "> **Read these numbers as a development set, not a blind test.** The router patterns and query expansions "
+        "were debugged against this gold set (three router/insight bugs it exposed were fixed), so a fresh, unseen "
+        "question set would score lower. The offline template SQL engine also only covers the intents it was built for; "
+        "an LLM key widens coverage at the cost of determinism.", "",
         "## How each metric is computed", "",
         "- **SQL execution accuracy**: the reference SQL in the gold file is executed; the answer counts as correct when every value of the reference result's first column appears in the copilot's result rows.",
         "- **Retrieval hit@3 / MRR**: the expected SOP must be among the top-3 fused BM25 + dense chunks.",

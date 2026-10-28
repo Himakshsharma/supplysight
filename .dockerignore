@@ -1,0 +1,12 @@
+.git
+__pycache__
+*.pyc
+.pytest_cache
+.venv
+venv
+data/raw
+data/drift
+data/*.db
+artifacts/*
+mlruns
+.env

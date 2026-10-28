@@ -16,6 +16,7 @@ USER = {"username": "manager", "role": "manager", "name": "Test Manager"}
 
 @pytest.mark.parametrize("page", PAGES, ids=lambda p: p.stem)
 def test_page_renders(page, trained, monkeypatch):
+    monkeypatch.syspath_prepend(str(DASH))  # `streamlit run` puts the script folder on sys.path
     if importlib.util.find_spec("streamlit") is not None:  # pragma: no cover - real Streamlit available
         from streamlit.testing.v1 import AppTest
 
@@ -29,7 +30,6 @@ def test_page_renders(page, trained, monkeypatch):
     st = fake_ui.make_streamlit({"user": USER})
     monkeypatch.setitem(sys.modules, "streamlit", st)
     fake_ui.make_plotly()
-    monkeypatch.syspath_prepend(str(DASH))
     sys.modules.pop("common", None)
     try:
         runpy.run_path(str(page), run_name="__main__")

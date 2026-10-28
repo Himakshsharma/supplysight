@@ -46,13 +46,17 @@ with a:
         flags["top reason"] = flags.reasons.map(lambda r: r[0] if r else "")
         show_df(flags[["ebeln", "bedat", "vendor", "maktx", "netwr", "score", "top reason"]].rename(
             columns={"netwr": "value ₹", "maktx": "material"}))
-    if hasattr(st, "page_link"):
+    try:
         st.page_link("pages/1_Anomaly_Review.py", label="Open the review queue →")
+    except Exception:  # older Streamlit or non-multipage context
+        pass
 with b:
     st.subheader("Materials at stock-out risk")
     rr = pd.DataFrame(client().reorder("High,Medium")).head(8)
     if len(rr):
         show_df(rr[["matnr", "maktx", "werks", "stockout_risk", "weeks_of_cover", "lead_time_days",
                     "recommended_rop", "current_minbe"]].round(1))
-    if hasattr(st, "page_link"):
+    try:
         st.page_link("pages/3_Demand_and_Reorder.py", label="Plan reorders →")
+    except Exception:
+        pass

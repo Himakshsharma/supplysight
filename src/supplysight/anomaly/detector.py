@@ -33,6 +33,12 @@ DIRECTION = {
 }
 
 
+# an ML explanation is skipped when a rule reason already covers the same signal
+RULE_KEYWORDS = {"log_lt_ratio": "lead time", "log_tenure_days": "days earlier", "is_offhours": "business hours",
+                 "is_weekend": "business hours", "same_day_cluster": "split PO", "vendor_dup_score": "duplicate",
+                 "no_info_record": "info record"}
+
+
 def _reason(feat: str, r: pd.Series) -> str | None:
     desc = f"{r.matnr} ({r.maktx})" if isinstance(r.get("maktx"), str) else str(r.matnr)
     if feat == "log_price_ratio":
@@ -145,8 +151,8 @@ class AnomalyDetector:
                     if contrib[i, j] < 2.5 or len(rs) >= top_k:
                         break
                     feat = ML_FEATURES[j]
-                    if feat in ("is_offhours", "is_weekend", "same_day_cluster", "vendor_dup_score",
-                                "no_info_record") and rs:
+                    key = RULE_KEYWORDS.get(feat)
+                    if key and any(key in x for x in rs):
                         continue  # already explained by a rule
                     txt = _reason(feat, r)
                     if txt and txt not in rs:

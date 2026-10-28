@@ -43,7 +43,7 @@ class Registry:
     # ------------------------------------------------------------- index helpers
     def _index(self) -> dict:
         if self.index_path.exists():
-            return json.loads(self.index_path.read_text())
+            return json.loads(self.index_path.read_text(encoding="utf-8"))
         return {}
 
     def _save(self, idx: dict) -> None:

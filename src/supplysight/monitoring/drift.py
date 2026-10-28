@@ -109,15 +109,23 @@ def write_html_report(sections: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.D
 
 
 def evidently_report(ref: pd.DataFrame, cur: pd.DataFrame, path: Path) -> bool:
-    """Write an Evidently data-drift report if evidently is installed (0.4.x API)."""
-    ev = optional_import("evidently.report")
-    presets = optional_import("evidently.metric_preset")
-    if ev is None or presets is None:
+    """Write an Evidently data-drift report if evidently is installed (0.7+ or legacy 0.4 API)."""
+    if optional_import("evidently") is None:
         return False
     try:  # pragma: no cover - optional dependency
-        rep = ev.Report(metrics=[presets.DataDriftPreset()])
-        rep.run(reference_data=ref, current_data=cur)
-        rep.save_html(str(path))
+        try:
+            from evidently import Report
+            from evidently.presets import DataDriftPreset
+
+            snap = Report([DataDriftPreset()]).run(reference_data=ref, current_data=cur)
+            snap.save_html(str(path))
+        except ImportError:
+            from evidently.metric_preset import DataDriftPreset
+            from evidently.report import Report
+
+            rep = Report(metrics=[DataDriftPreset()])
+            rep.run(reference_data=ref, current_data=cur)
+            rep.save_html(str(path))
         return True
     except Exception as exc:  # pragma: no cover
         log.warning("Evidently report skipped: %s", exc)

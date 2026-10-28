@@ -269,8 +269,8 @@ def overview() -> dict:
 def model_health() -> dict:
     """Registry versions, latest training metrics and the drift summary."""
     rep = get_settings().reports_dir
-    drift = json.loads((rep / "drift_summary.json").read_text()) if (rep / "drift_summary.json").exists() else None
-    decision = json.loads((rep / "retrain_decision.json").read_text()) if (rep / "retrain_decision.json").exists() else None
+    drift = json.loads((rep / "drift_summary.json").read_text(encoding="utf-8")) if (rep / "drift_summary.json").exists() else None
+    decision = json.loads((rep / "retrain_decision.json").read_text(encoding="utf-8")) if (rep / "retrain_decision.json").exists() else None
     reg = Registry()
     prod = {n: reg.get_version(n, "Production") for n in (ANOMALY_MODEL, FORECAST_MODEL)}
     return {"registry": reg.list(), "production": prod, "drift": drift, "retrain_decision": decision,

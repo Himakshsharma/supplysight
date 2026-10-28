@@ -30,6 +30,8 @@ def main() -> None:
     af = t["afko"].merge(t["mara"][["matnr", "matkl"]], left_on="plnbez", right_on="matnr")
     af["month"] = pd.to_datetime(af.gstrp).dt.to_period("M").dt.to_timestamp()
     g = af.groupby(["month", "matkl"]).gamng.sum().unstack().fillna(0)
+    wk = af.groupby("month").gstrp.apply(lambda d: pd.to_datetime(d).dt.isocalendar().week.nunique())
+    g = g[wk.reindex(g.index) >= 3]  # drop partial months at the edges
     groups = ["FG-SUN", "FG-LIP", "FG-CREAM", "FG-HAIR"]
     fig, ax = plt.subplots(figsize=(10, 3.6))
     for c, col in zip(groups, COLORS, strict=False):
@@ -63,6 +65,21 @@ def main() -> None:
     fig.tight_layout()
     fig.savefig(OUT / "eda_prices_anomalies.png", dpi=120)
     plt.close(fig)
+    rep = Path(__file__).resolve().parents[1] / "artifacts" / "reports"
+    if (rep / "forecast_vs_actual.png").exists():
+        import shutil
+
+        shutil.copy(rep / "forecast_vs_actual.png", OUT / "forecast_vs_actual.png")
+    if (rep / "drift_features.csv").exists():
+        ft = pd.read_csv(rep / "drift_features.csv").sort_values("psi")
+        fig, ax = plt.subplots(figsize=(8, 4.2))
+        ax.barh(ft.feature, ft.psi, color=["#c0392b" if d else "#94a3b8" for d in ft.drifted])
+        ax.axvline(0.2, ls="--", color="#c0392b", lw=1)
+        ax.set_title("Drift quarter vs reference: PSI per PO feature (red = drifted)", fontsize=10, loc="left")
+        ax.spines[["top", "right"]].set_visible(False)
+        fig.tight_layout()
+        fig.savefig(OUT / "drift_psi.png", dpi=120)
+        plt.close(fig)
     print("wrote", OUT)
 
 
