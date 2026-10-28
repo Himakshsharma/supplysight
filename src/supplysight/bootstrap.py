@@ -32,8 +32,12 @@ def is_ready() -> bool:
     )
 
 
-def ensure_demo_state(seed: int | None = None, quick: bool = False) -> bool:
-    """Generate data and train models if needed. Returns True if anything was built."""
+def ensure_demo_state(seed: int | None = None, quick: bool = True) -> bool:
+    """Generate data and train models if needed. Returns True if anything was built.
+
+    ``quick`` uses two backtest origins instead of six, which halves the CPU needed on a cold start
+    of a free hosting tier. ``python run.py all`` always runs the full evaluation.
+    """
     if is_ready():
         return False
     s = get_settings()
