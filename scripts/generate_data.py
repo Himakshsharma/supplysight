@@ -8,16 +8,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from supplysight.config import get_settings  # noqa: E402
-from supplysight.data import validate  # noqa: E402
-from supplysight.datagen.generator import GenConfig, generate, write_csv  # noqa: E402
-from supplysight.db import load_tables  # noqa: E402
-from supplysight.utils import get_logger  # noqa: E402
+from supplysight.config import get_settings
+from supplysight.data import validate
+from supplysight.datagen.generator import GenConfig, generate, write_csv
+from supplysight.db import load_tables
+from supplysight.utils import get_logger
 
 log = get_logger("generate_data")
 

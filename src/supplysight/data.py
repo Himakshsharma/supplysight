@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import pandas as pd
-
 from pathlib import Path
+
+import pandas as pd
 
 from supplysight.db import SCHEMA, SOURCE_TABLES, read_table
 
@@ -64,8 +64,11 @@ def po_items(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Join PO items with header, vendor, material and info-record data (one row per item)."""
     ekpo, ekko = tables["ekpo"], tables["ekko"]
     df = ekpo.merge(ekko[["ebeln", "lifnr", "bedat", "created_at", "created_by", "ekgrp"]], on="ebeln")
-    df = df.merge(tables["lfa1"][["lifnr", "name1", "created_on"]].rename(columns={"created_on": "vendor_created_on"}),
-                  on="lifnr", how="left")
+    df = df.merge(
+        tables["lfa1"][["lifnr", "name1", "created_on"]].rename(columns={"created_on": "vendor_created_on"}),
+        on="lifnr",
+        how="left",
+    )
     df = df.merge(tables["makt"][["matnr", "maktx"]], on="matnr", how="left")
     df = df.merge(tables["eban"][["banfn", "menge"]].rename(columns={"menge": "pr_menge"}), on="banfn", how="left")
     df["created_at"] = pd.to_datetime(df.created_at)
@@ -74,11 +77,19 @@ def po_items(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     info["valid_from"] = pd.to_datetime(info.valid_from)
     info = info.sort_values("valid_from")
     df = df.sort_values("created_at")
-    df = pd.merge_asof(df, info[["matnr", "lifnr", "valid_from", "netpr", "aplfz"]].rename(
-        columns={"netpr": "info_netpr", "valid_from": "_vf"}), left_on="created_at", right_on="_vf",
-        by=["matnr", "lifnr"], direction="backward")
+    df = pd.merge_asof(
+        df,
+        info[["matnr", "lifnr", "valid_from", "netpr", "aplfz"]].rename(
+            columns={"netpr": "info_netpr", "valid_from": "_vf"}
+        ),
+        left_on="created_at",
+        right_on="_vf",
+        by=["matnr", "lifnr"],
+        direction="backward",
+    )
     prim = info[info.is_primary.astype(int) == 1][["matnr", "valid_from", "aplfz", "netpr"]].rename(
-        columns={"aplfz": "prim_aplfz", "netpr": "prim_netpr", "valid_from": "_vfp"})
+        columns={"aplfz": "prim_aplfz", "netpr": "prim_netpr", "valid_from": "_vfp"}
+    )
     df = pd.merge_asof(df, prim, left_on="created_at", right_on="_vfp", by="matnr", direction="backward")
     df = df.drop(columns=["_vf", "_vfp"])
     df["bedat"] = pd.to_datetime(df.bedat)
@@ -124,9 +135,19 @@ def read_csv_tables(directory: Path, names: list[str] | None = None) -> dict[str
 
 
 # (table, key columns) used when appending a new period to the history
-TABLE_KEYS = {"lfa1": ["lifnr"], "eina": ["infnr"], "eine": ["infnr", "ekorg", "valid_from"], "eban": ["banfn", "bnfpo"],
-              "ekko": ["ebeln"], "ekpo": ["ebeln", "ebelp"], "mkpf": ["mblnr", "mjahr"], "mseg": ["mblnr", "zeile"],
-              "afko": ["aufnr"], "afpo": ["aufnr", "posnr"], "anomaly_labels": ["ebeln", "ebelp"]}
+TABLE_KEYS = {
+    "lfa1": ["lifnr"],
+    "eina": ["infnr"],
+    "eine": ["infnr", "ekorg", "valid_from"],
+    "eban": ["banfn", "bnfpo"],
+    "ekko": ["ebeln"],
+    "ekpo": ["ebeln", "ebelp"],
+    "mkpf": ["mblnr", "mjahr"],
+    "mseg": ["mblnr", "zeile"],
+    "afko": ["aufnr"],
+    "afpo": ["aufnr", "posnr"],
+    "anomaly_labels": ["ebeln", "ebelp"],
+}
 
 
 def merge_periods(ref: dict[str, pd.DataFrame], cur: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:

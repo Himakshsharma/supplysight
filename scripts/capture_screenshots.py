@@ -13,8 +13,14 @@ from pathlib import Path
 
 URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8501"
 OUT = Path(__file__).resolve().parents[1] / "docs" / "images"
-PAGES = {"overview": "", "anomaly_review": "Anomaly_Review", "vendor_duplicates": "Vendor_Duplicates",
-         "demand_reorder": "Demand_and_Reorder", "copilot": "Copilot", "model_health": "Model_Health"}
+PAGES = {
+    "overview": "",
+    "anomaly_review": "Anomaly_Review",
+    "vendor_duplicates": "Vendor_Duplicates",
+    "demand_reorder": "Demand_and_Reorder",
+    "copilot": "Copilot",
+    "model_health": "Model_Health",
+}
 
 
 def main() -> None:

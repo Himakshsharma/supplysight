@@ -38,8 +38,10 @@ async def log_requests(request: Request, call_next):
         response = await call_next(request)
     except Exception:  # pragma: no cover - turned into a 500 JSON body below
         log.exception("unhandled error rid=%s", rid)
-        response = JSONResponse({"error": {"code": "internal_error", "message": "Internal server error",
-                                           "request_id": rid}}, status_code=500)
+        response = JSONResponse(
+            {"error": {"code": "internal_error", "message": "Internal server error", "request_id": rid}},
+            status_code=500,
+        )
     ms = (time.perf_counter() - t0) * 1000
     route = request.scope.get("route")
     METRICS.record(getattr(route, "path", request.url.path), response.status_code, ms)
@@ -49,8 +51,10 @@ async def log_requests(request: Request, call_next):
 
 
 def _error(request: Request, status_code: int, code: str, message) -> JSONResponse:
-    return JSONResponse({"error": {"code": code, "message": message,
-                                   "request_id": getattr(request.state, "request_id", None)}}, status_code=status_code)
+    return JSONResponse(
+        {"error": {"code": code, "message": message, "request_id": getattr(request.state, "request_id", None)}},
+        status_code=status_code,
+    )
 
 
 @app.exception_handler(HTTPException)
@@ -76,8 +80,12 @@ def health() -> dict:
     reg = Registry()
     models = {n: (reg.get_version(n, "Production") or {}).get("version") for n in (ANOMALY_MODEL, FORECAST_MODEL)}
     db_ok = table_exists("ekpo") and table_exists("po_scores")
-    return {"status": "ok" if db_ok and all(models.values()) else "degraded", "database": db_ok,
-            "models": models, "version": __version__}
+    return {
+        "status": "ok" if db_ok and all(models.values()) else "degraded",
+        "database": db_ok,
+        "models": models,
+        "version": __version__,
+    }
 
 
 @app.get("/metrics", tags=["system"])
@@ -85,7 +93,9 @@ def metrics() -> dict:
     """Request counts, error counts, p50/p95 latency per route and production model versions."""
     reg = Registry()
     snap = METRICS.snapshot()
-    snap["models"] = {n: (reg.get_version(n, "Production") or {}).get("version") for n in (ANOMALY_MODEL, FORECAST_MODEL)}
+    snap["models"] = {
+        n: (reg.get_version(n, "Production") or {}).get("version") for n in (ANOMALY_MODEL, FORECAST_MODEL)
+    }
     return snap
 
 

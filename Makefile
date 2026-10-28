@@ -30,11 +30,11 @@ test:
 
 lint:
 	$(PY) -m ruff check .
-	$(PY) -m black --check .
+	$(PY) -m ruff format --check .
 
 format:
 	$(PY) -m ruff check --fix .
-	$(PY) -m black .
+	$(PY) -m ruff format .
 
 api:
 	$(PY) -m uvicorn supplysight.api.main:app --reload --port 8000

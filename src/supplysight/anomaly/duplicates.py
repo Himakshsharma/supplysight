@@ -70,8 +70,16 @@ def find_duplicate_vendors(lfa1: pd.DataFrame, threshold: float = 0.72) -> pd.Da
             if str(a.created_on) > str(b.created_on):
                 a, b = b, a
             evidence = [f"name {ns:.0%}", f"address {ad:.0%}"] + ([why] if why else [])
-            rows.append({"lifnr_a": a.lifnr, "lifnr_b": b.lifnr, "name_a": a.name1, "name_b": b.name1,
-                         "similarity": round(sim, 4), "match_on": "; ".join(evidence)})
+            rows.append(
+                {
+                    "lifnr_a": a.lifnr,
+                    "lifnr_b": b.lifnr,
+                    "name_a": a.name1,
+                    "name_b": b.name1,
+                    "similarity": round(sim, 4),
+                    "match_on": "; ".join(evidence),
+                }
+            )
     cols = ["lifnr_a", "lifnr_b", "name_a", "name_b", "similarity", "match_on"]
     return pd.DataFrame(rows, columns=cols).sort_values("similarity", ascending=False).reset_index(drop=True)
 

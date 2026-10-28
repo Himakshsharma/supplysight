@@ -47,10 +47,17 @@ def drift_table(ref: pd.DataFrame, cur: pd.DataFrame, features: list[str]) -> pd
         a, b = ref[c].to_numpy(float), cur[c].to_numpy(float)
         ks = ks_2samp(a[np.isfinite(a)], b[np.isfinite(b)]) if len(a) and len(b) else None
         val = psi(a, b)
-        rows.append({"feature": c, "psi": round(val, 4), "ks_stat": round(float(ks.statistic), 4) if ks else np.nan,
-                     "ks_pvalue": float(ks.pvalue) if ks else np.nan,
-                     "ref_mean": float(np.nanmean(a)), "cur_mean": float(np.nanmean(b)),
-                     "drifted": bool(val >= PSI_ALERT or (ks is not None and ks.pvalue < 0.01 and ks.statistic > 0.1))})
+        rows.append(
+            {
+                "feature": c,
+                "psi": round(val, 4),
+                "ks_stat": round(float(ks.statistic), 4) if ks else np.nan,
+                "ks_pvalue": float(ks.pvalue) if ks else np.nan,
+                "ref_mean": float(np.nanmean(a)),
+                "cur_mean": float(np.nanmean(b)),
+                "drifted": bool(val >= PSI_ALERT or (ks is not None and ks.pvalue < 0.01 and ks.statistic > 0.1)),
+            }
+        )
     return pd.DataFrame(rows).sort_values("psi", ascending=False).reset_index(drop=True)
 
 
@@ -77,31 +84,42 @@ def _hist_png(ref: np.ndarray, cur: np.ndarray, title: str) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def write_html_report(sections: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]], summary: dict,
-                      path: Path) -> None:
+def write_html_report(
+    sections: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]], summary: dict, path: Path
+) -> None:
     """Self-contained HTML drift report. sections: name -> (table, ref_df, cur_df)."""
-    css = ("body{font-family:system-ui,Segoe UI,sans-serif;margin:24px;color:#0f172a;background:#fff}"
-           "table{border-collapse:collapse;font-size:13px;margin:8px 0 20px}td,th{border-bottom:1px solid #e2e8f0;"
-           "padding:4px 10px;text-align:right}th{background:#f8fafc}td:first-child,th:first-child{text-align:left}"
-           ".bad{color:#b91c1c;font-weight:600}.grid{display:flex;flex-wrap:wrap;gap:8px}.card{border:1px solid "
-           "#e2e8f0;border-radius:8px;padding:4px}h1{font-size:22px}h2{font-size:17px;margin-top:28px}")
-    html = [f"<!doctype html><html><head><meta charset='utf-8'><title>SupplySight drift report</title><style>{css}"
-            "</style></head><body><h1>SupplySight – data &amp; prediction drift</h1>",
-            "<p>Synthetic data only. PSI ≥ 0.2 or KS p &lt; 0.01 with statistic &gt; 0.1 marks a feature as drifted.</p>",
-            "<table><tr><th>Check</th><th>Value</th></tr>"]
+    css = (
+        "body{font-family:system-ui,Segoe UI,sans-serif;margin:24px;color:#0f172a;background:#fff}"
+        "table{border-collapse:collapse;font-size:13px;margin:8px 0 20px}td,th{border-bottom:1px solid #e2e8f0;"
+        "padding:4px 10px;text-align:right}th{background:#f8fafc}td:first-child,th:first-child{text-align:left}"
+        ".bad{color:#b91c1c;font-weight:600}.grid{display:flex;flex-wrap:wrap;gap:8px}.card{border:1px solid "
+        "#e2e8f0;border-radius:8px;padding:4px}h1{font-size:22px}h2{font-size:17px;margin-top:28px}"
+    )
+    html = [
+        f"<!doctype html><html><head><meta charset='utf-8'><title>SupplySight drift report</title><style>{css}"
+        "</style></head><body><h1>SupplySight – data &amp; prediction drift</h1>",
+        "<p>Synthetic data only. PSI ≥ 0.2 or KS p &lt; 0.01 with statistic &gt; 0.1 marks a feature as drifted.</p>",
+        "<table><tr><th>Check</th><th>Value</th></tr>",
+    ]
     for k, v in summary.items():
         html.append(f"<tr><td>{k}</td><td>{v if not isinstance(v, float) else round(v, 4)}</td></tr>")
     html.append("</table>")
     for name, (tab, ref, cur) in sections.items():
-        html.append(f"<h2>{name}</h2><table><tr><th>feature</th><th>PSI</th><th>KS</th><th>KS p</th>"
-                    "<th>ref mean</th><th>cur mean</th><th>drifted</th></tr>")
+        html.append(
+            f"<h2>{name}</h2><table><tr><th>feature</th><th>PSI</th><th>KS</th><th>KS p</th>"
+            "<th>ref mean</th><th>cur mean</th><th>drifted</th></tr>"
+        )
         for r in tab.itertuples():
             cls = " class='bad'" if r.drifted else ""
-            html.append(f"<tr><td>{r.feature}</td><td{cls}>{r.psi:.3f}</td><td>{r.ks_stat:.3f}</td><td>{r.ks_pvalue:.2g}</td>"
-                        f"<td>{r.ref_mean:.3f}</td><td>{r.cur_mean:.3f}</td><td{cls}>{'yes' if r.drifted else 'no'}</td></tr>")
+            html.append(
+                f"<tr><td>{r.feature}</td><td{cls}>{r.psi:.3f}</td><td>{r.ks_stat:.3f}</td><td>{r.ks_pvalue:.2g}</td>"
+                f"<td>{r.ref_mean:.3f}</td><td>{r.cur_mean:.3f}</td><td{cls}>{'yes' if r.drifted else 'no'}</td></tr>"
+            )
         html.append("</table><div class='grid'>")
         for r in tab.head(6).itertuples():
-            img = _hist_png(ref[r.feature].to_numpy(float), cur[r.feature].to_numpy(float), f"{r.feature} (PSI {r.psi:.2f})")
+            img = _hist_png(
+                ref[r.feature].to_numpy(float), cur[r.feature].to_numpy(float), f"{r.feature} (PSI {r.psi:.2f})"
+            )
             html.append(f"<div class='card'><img src='data:image/png;base64,{img}' alt='{r.feature}'></div>")
         html.append("</div>")
     html.append("</body></html>")

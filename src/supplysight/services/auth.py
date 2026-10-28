@@ -30,9 +30,15 @@ def _hash(password: str, salt: str) -> str:
     return hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120_000).hex()
 
 
-_USERS = {u: {"role": u, "salt": f"ss-{u}", "hash": _hash(f"{u}123", f"ss-{u}"), "name": n}
-          for u, n in [("buyer", "Riya Sharma (Buyer)"), ("planner", "Arjun Mehta (MRP Planner)"),
-                       ("manager", "Neha Gupta (Purchase Manager)"), ("admin", "System Admin")]}
+_USERS = {
+    u: {"role": u, "salt": f"ss-{u}", "hash": _hash(f"{u}123", f"ss-{u}"), "name": n}
+    for u, n in [
+        ("buyer", "Riya Sharma (Buyer)"),
+        ("planner", "Arjun Mehta (MRP Planner)"),
+        ("manager", "Neha Gupta (Purchase Manager)"),
+        ("admin", "System Admin"),
+    ]
+}
 
 
 def authenticate(username: str, password: str) -> dict | None:

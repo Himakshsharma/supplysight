@@ -8,16 +8,13 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    # The code was written to ruff/black conventions but never auto-formatted in the authoring sandbox
-    # (no network for pip). Run `make format` once, commit, then delete the next line to enforce linting.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
-      - run: pip install "ruff>=0.4" "black>=24.2"
+      - run: pip install "ruff>=0.6"
       - run: ruff check .
-      - run: black --check .
+      - run: ruff format --check .
 
   test:
     needs: lint

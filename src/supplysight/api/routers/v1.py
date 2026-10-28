@@ -35,8 +35,12 @@ def login(body: LoginRequest) -> TokenResponse:
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid username or password")
     mins = get_settings().jwt_expiry_minutes
-    return TokenResponse(access_token=create_token(user["username"], user["role"], mins), role=user["role"],
-                         name=user["name"], expires_in_minutes=mins)
+    return TokenResponse(
+        access_token=create_token(user["username"], user["role"], mins),
+        role=user["role"],
+        name=user["name"],
+        expires_in_minutes=mins,
+    )
 
 
 @router.get("/auth/me", tags=["auth"])
@@ -57,12 +61,15 @@ async def score(body: POScoreRequest, user: dict = Depends(require("anomaly:scor
 
 
 @router.get("/anomaly/flags", response_model=list[Flag], tags=["anomaly"])
-def flags(risk: str | None = Query(None, description="High, Medium or High,Medium"),
-          date_from: str | None = Query(None, alias="from", description="PO date from (YYYY-MM-DD)"),
-          date_to: str | None = Query(None, alias="to", description="PO date to (YYYY-MM-DD)"),
-          review_status: str | None = Query(None, alias="status", pattern="^(open|reviewed)$"),
-          limit: int = Query(200, ge=1, le=1000), offset: int = Query(0, ge=0),
-          user: dict = Depends(require("anomaly:read"))) -> list[dict]:
+def flags(
+    risk: str | None = Query(None, description="High, Medium or High,Medium"),
+    date_from: str | None = Query(None, alias="from", description="PO date from (YYYY-MM-DD)"),
+    date_to: str | None = Query(None, alias="to", description="PO date to (YYYY-MM-DD)"),
+    review_status: str | None = Query(None, alias="status", pattern="^(open|reviewed)$"),
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    user: dict = Depends(require("anomaly:read")),
+) -> list[dict]:
     """List flagged POs (Medium/High by default), highest score first."""
     return core.list_flags(risk, date_from, date_to, review_status, limit, offset)
 
@@ -91,15 +98,22 @@ def duplicate_vendors(user: dict = Depends(require("anomaly:read"))) -> list[dic
 
 # ---------------------------------------------------------------- forecast
 @router.get("/forecast/reorder-risk", tags=["forecast"])
-def reorder_risk(risk: str | None = Query(None, description="High, Medium, Low or a comma list"),
-                 limit: int = Query(500, ge=1, le=2000), user: dict = Depends(require("forecast:read"))) -> list[dict]:
+def reorder_risk(
+    risk: str | None = Query(None, description="High, Medium, Low or a comma list"),
+    limit: int = Query(500, ge=1, le=2000),
+    user: dict = Depends(require("forecast:read")),
+) -> list[dict]:
     """Recommended reorder points vs current MINBE, with stock-out risk."""
     return core.reorder_risk(risk, limit)
 
 
 @router.get("/forecast/{matnr}", response_model=ForecastResponse, tags=["forecast"])
-def forecast(matnr: str, plant: str | None = Query(None, pattern="^(1000|2000)$"),
-             horizon: int = Query(8, ge=1, le=12), user: dict = Depends(require("forecast:read"))) -> dict:
+def forecast(
+    matnr: str,
+    plant: str | None = Query(None, pattern="^(1000|2000)$"),
+    horizon: int = Query(8, ge=1, le=12),
+    user: dict = Depends(require("forecast:read")),
+) -> dict:
     """Weekly P10/P50/P90 demand forecast with recent history and reorder recommendation."""
     try:
         return core.get_forecast(matnr, plant, horizon)

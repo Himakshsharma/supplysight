@@ -12,18 +12,12 @@ from __future__ import annotations
 
 import argparse
 import shutil
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from supplysight.config import get_settings  # noqa: E402
-from supplysight.datagen.generator import GenConfig, generate, write_csv  # noqa: E402
-from supplysight.utils import get_logger  # noqa: E402
+from supplysight.config import get_settings
+from supplysight.datagen.generator import DRIFT_TABLES, drift_quarter_config, generate, write_csv
+from supplysight.utils import get_logger
 
 log = get_logger("simulate_drift")
-TRANSACTIONAL = ["lfa1", "eina", "eine", "eban", "ekko", "ekpo", "mkpf", "mseg", "afko", "afpo", "mard", "plaf",
-                 "anomaly_labels"]
 
 
 def main() -> None:
@@ -36,19 +30,21 @@ def main() -> None:
     ap.add_argument("--price-shock", type=float, default=1.18)
     ap.add_argument("--new-vendor-share", type=float, default=0.15)
     args = ap.parse_args()
-    drift = {} if args.no_drift else {
-        "price_shock": args.price_shock,
-        "demand_surge": {"FG-LIP": 1.5, "FG-CREAM": 1.3, "FG-FRAG": 1.45, "FG-FACE": 1.25},
-        "new_vendor_share": args.new_vendor_share,
-    }
-    cfg = GenConfig(seed=args.seed, start=args.start, end=args.end, trend_anchor="2024-10-01",
-                    id_offset=100_000, vendor_offset=100, drift=drift)
+    cfg = drift_quarter_config(
+        args.seed, args.start, args.end, args.price_shock, args.new_vendor_share, drift=not args.no_drift
+    )
     tables = generate(cfg)
     out = get_settings().data_dir / "drift"
     shutil.rmtree(out, ignore_errors=True)
-    write_csv({k: v for k, v in tables.items() if k in TRANSACTIONAL}, out)
-    log.info("Wrote new period %s..%s to %s (%d POs, drift=%s)", args.start, args.end, out, len(tables["ekpo"]),
-             bool(drift))
+    write_csv({k: v for k, v in tables.items() if k in DRIFT_TABLES}, out)
+    log.info(
+        "Wrote new period %s..%s to %s (%d POs, drift=%s)",
+        args.start,
+        args.end,
+        out,
+        len(tables["ekpo"]),
+        bool(cfg.drift),
+    )
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Reorder-point recommendations from the forecast, its error and vendor lead time.
 
-    safety_stock = z * sigma_weekly * sqrt(lead_time_weeks)
-    reorder_point = mean_weekly_forecast * lead_time_weeks + safety_stock
+safety_stock = z * sigma_weekly * sqrt(lead_time_weeks)
+reorder_point = mean_weekly_forecast * lead_time_weeks + safety_stock
 """
 
 from __future__ import annotations
@@ -12,8 +12,13 @@ import pandas as pd
 Z_SERVICE = {0.90: 1.2816, 0.95: 1.6449, 0.98: 2.0537, 0.99: 2.3263}
 
 
-def recommend_reorder_points(series: pd.DataFrame, forecast: np.ndarray, sigma: np.ndarray,
-                             tables: dict[str, pd.DataFrame], service_level: float = 0.95) -> pd.DataFrame:
+def recommend_reorder_points(
+    series: pd.DataFrame,
+    forecast: np.ndarray,
+    sigma: np.ndarray,
+    tables: dict[str, pd.DataFrame],
+    service_level: float = 0.95,
+) -> pd.DataFrame:
     """Compare recommended ROPs with SAP MARC.MINBE and flag stock-out risk.
 
     Args:
@@ -48,12 +53,23 @@ def recommend_reorder_points(series: pd.DataFrame, forecast: np.ndarray, sigma: 
             risk = "Medium"
         else:
             risk = "Low"
-        rows.append({"matnr": r.matnr, "werks": r.werks, "maktx": makt.get(r.matnr, ""), "matkl": r.matkl,
-                     "avg_weekly_forecast": round(d, 3), "sigma": round(float(sigma[i]), 3),
-                     "lead_time_days": int(lt_days), "safety_stock": round(ss, 3), "recommended_rop": round(rop, 3),
-                     "current_minbe": round(minbe, 3), "current_stock": round(stock, 3),
-                     "open_po_qty": round(open_q, 3),
-                     "weeks_of_cover": round((stock + open_q) / d, 2) if d > 0 else 999.0,
-                     "stockout_risk": risk,
-                     "rop_gap_pct": round(100 * (rop - minbe) / minbe, 1) if minbe and minbe > 0 else np.nan})
+        rows.append(
+            {
+                "matnr": r.matnr,
+                "werks": r.werks,
+                "maktx": makt.get(r.matnr, ""),
+                "matkl": r.matkl,
+                "avg_weekly_forecast": round(d, 3),
+                "sigma": round(float(sigma[i]), 3),
+                "lead_time_days": int(lt_days),
+                "safety_stock": round(ss, 3),
+                "recommended_rop": round(rop, 3),
+                "current_minbe": round(minbe, 3),
+                "current_stock": round(stock, 3),
+                "open_po_qty": round(open_q, 3),
+                "weeks_of_cover": round((stock + open_q) / d, 2) if d > 0 else 999.0,
+                "stockout_risk": risk,
+                "rop_gap_pct": round(100 * (rop - minbe) / minbe, 1) if minbe and minbe > 0 else np.nan,
+            }
+        )
     return pd.DataFrame(rows)

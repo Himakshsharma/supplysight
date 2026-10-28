@@ -39,8 +39,9 @@ def _rolling_past(df: pd.DataFrame, by: list[str], col: str, window: str, how: s
     return tmp.sort_values("_i")["_v"].reset_index(drop=True)
 
 
-def build_po_features(items: pd.DataFrame, weekly: pd.DataFrame | None, dup_scores: dict,
-                      approval_threshold: float) -> pd.DataFrame:
+def build_po_features(
+    items: pd.DataFrame, weekly: pd.DataFrame | None, dup_scores: dict, approval_threshold: float
+) -> pd.DataFrame:
     """Compute raw and model-ready features for each PO item.
 
     Args:
@@ -74,8 +75,14 @@ def build_po_features(items: pd.DataFrame, weekly: pd.DataFrame | None, dup_scor
         key = df[["matnr", "werks", "created_at"]].copy()
         key["_i"] = np.arange(len(key))
         key = key.sort_values("created_at")
-        m = pd.merge_asof(key, w.sort_values("week"), left_on="created_at", right_on="week",
-                          by=["matnr", "werks"], direction="backward")
+        m = pd.merge_asof(
+            key,
+            w.sort_values("week"),
+            left_on="created_at",
+            right_on="week",
+            by=["matnr", "werks"],
+            direction="backward",
+        )
         df["avg_weekly_use"] = m.sort_values("_i").avg8.values
     else:
         df["avg_weekly_use"] = np.nan

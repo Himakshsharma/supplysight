@@ -10,14 +10,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from supplysight.config import get_settings  # noqa: E402
-from supplysight.copilot.evaluate import evaluate_copilot, write_report  # noqa: E402
-from supplysight.copilot.retriever import build_index  # noqa: E402
+from supplysight.config import get_settings
+from supplysight.copilot.evaluate import evaluate_copilot, write_report
+from supplysight.copilot.retriever import build_index
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,15 +31,20 @@ def latency_benchmark(n: int = 300) -> dict:
     model, _ = Registry().load(ANOMALY_MODEL)
     x = np.zeros((1, len(model.scaler.center_)))
     out = {}
-    for name, fn in {"isolation_forest": lambda: model.iforest.score_samples(x),
-                     "autoencoder": lambda: model.ae.score(x)}.items():
+    for name, fn in {
+        "isolation_forest": lambda: model.iforest.score_samples(x),
+        "autoencoder": lambda: model.ae.score(x),
+    }.items():
         ts = []
         for _ in range(n):
             t = time.perf_counter()
             fn()
             ts.append((time.perf_counter() - t) * 1000)
-        out[name] = {"p50_ms": round(float(np.percentile(ts, 50)), 3), "p95_ms": round(float(np.percentile(ts, 95)), 3),
-                     "backend": model.ae.backend if name == "autoencoder" else "sklearn"}
+        out[name] = {
+            "p50_ms": round(float(np.percentile(ts, 50)), 3),
+            "p95_ms": round(float(np.percentile(ts, 95)), 3),
+            "backend": model.ae.backend if name == "autoencoder" else "sklearn",
+        }
     return out
 
 
@@ -65,9 +67,11 @@ def main() -> None:
         (rep / "copilot_eval.json").write_text(json.dumps(res["metrics"], indent=2))
         result["copilot"] = res["metrics"]
         m = res["metrics"]
-        gates = [(m["router_accuracy"], args.min_router, "router accuracy"),
-                 (m["sql_execution_accuracy"], args.min_sql, "SQL execution accuracy"),
-                 (m["retrieval_hit@3"], args.min_hit3, "retrieval hit@3")]
+        gates = [
+            (m["router_accuracy"], args.min_router, "router accuracy"),
+            (m["sql_execution_accuracy"], args.min_sql, "SQL execution accuracy"),
+            (m["retrieval_hit@3"], args.min_hit3, "retrieval hit@3"),
+        ]
         failed = [f"{n} {v:.2f} < {g}" for v, g, n in gates if v < g]
         if m["guardrail_block_rate"] < 1.0:
             failed.append("a guardrail test question was not blocked")

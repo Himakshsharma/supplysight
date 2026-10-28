@@ -59,11 +59,31 @@ def make_streamlit(session: dict) -> types.ModuleType:
         def f(*a, **k):
             calls.append(name)
             return Anything()
+
         return f
 
-    for n in ("set_page_config", "markdown", "caption", "title", "subheader", "metric", "plotly_chart", "dataframe",
-              "info", "success", "warning", "error", "divider", "code", "image", "write", "download_button",
-              "page_link", "rerun", "json"):
+    for n in (
+        "set_page_config",
+        "markdown",
+        "caption",
+        "title",
+        "subheader",
+        "metric",
+        "plotly_chart",
+        "dataframe",
+        "info",
+        "success",
+        "warning",
+        "error",
+        "divider",
+        "code",
+        "image",
+        "write",
+        "download_button",
+        "page_link",
+        "rerun",
+        "json",
+    ):
         setattr(st, n, rec(n))
     st.stop = lambda: (_ for _ in ()).throw(StopPage())
     st.columns = lambda spec, **k: [Anything() for _ in range(spec if isinstance(spec, int) else len(spec))]
@@ -84,7 +104,7 @@ def make_streamlit(session: dict) -> types.ModuleType:
     st.number_input = lambda label, min_value=None, max_value=None, value=None, *a, **k: value
     st.date_input = lambda label, value=None, **k: value or date(2026, 1, 1)
     st.slider = lambda label, min_value=None, max_value=None, value=None, *a, **k: value
-    st.cache_resource = lambda *a, **k: (a[0] if a and callable(a[0]) else (lambda f: f))
+    st.cache_resource = lambda *a, **k: a[0] if a and callable(a[0]) else (lambda f: f)
     st.cache_data = st.cache_resource
     cc = types.SimpleNamespace(ProgressColumn=lambda *a, **k: None, NumberColumn=lambda *a, **k: None)
     st.column_config = cc

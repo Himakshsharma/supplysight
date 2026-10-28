@@ -8,6 +8,7 @@ saves reports under ``artifacts/reports``.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -67,8 +68,11 @@ def _labels(f: pd.DataFrame, tables: dict[str, pd.DataFrame], feedback: pd.DataF
         m = f[["ebeln", "ebelp"]].merge(lab, on=["ebeln", "ebelp"], how="left")
         out = pd.Series(m.anomaly_type.values, index=f.index, dtype=object)
     if feedback is not None and not feedback.empty:
-        fb = f[["ebeln", "ebelp"]].merge(feedback[["ebeln", "ebelp", "verdict"]].drop_duplicates(["ebeln", "ebelp"], keep="last"),
-                                         on=["ebeln", "ebelp"], how="left")
+        fb = f[["ebeln", "ebelp"]].merge(
+            feedback[["ebeln", "ebelp", "verdict"]].drop_duplicates(["ebeln", "ebelp"], keep="last"),
+            on=["ebeln", "ebelp"],
+            how="left",
+        )
         v = pd.Series(fb.verdict.values, index=f.index)
         out = out.where(~(v == "false_positive"), None)
         out = out.where(~((v == "true_issue") & out.isna()), "analyst_confirmed")
@@ -108,9 +112,13 @@ def _feedback_stacker(det: AnomalyDetector, f: pd.DataFrame, feedback: pd.DataFr
     return LogisticRegression(C=1.0, class_weight="balanced", max_iter=500).fit(z, yy)
 
 
-def train_anomaly(tables: dict[str, pd.DataFrame] | None = None, quick: bool = False,
-                  promote: str = "if_better", feedback: pd.DataFrame | None = None,
-                  window_days: int | None = None) -> dict:
+def train_anomaly(
+    tables: dict[str, pd.DataFrame] | None = None,
+    quick: bool = False,
+    promote: str = "if_better",
+    feedback: pd.DataFrame | None = None,
+    window_days: int | None = None,
+) -> dict:
     """Train, evaluate, register and deploy the PO anomaly ensemble.
 
     ``window_days`` restricts training to the most recent period (sliding window), which
@@ -134,29 +142,54 @@ def train_anomaly(tables: dict[str, pd.DataFrame] | None = None, quick: bool = F
     with track_run("anomaly", "ensemble") as run:
         det = AnomalyDetector(rule_cfg=rule_cfg, seed=s.seed, nn_backend=s.nn_backend).fit(f[tr])
         sc = det.score(f[te])
-        hold = evaluate_scores(y[te], {"rules_only": sc.rule_score, "isolation_forest": sc.iforest_score,
-                                       "autoencoder": sc.ae_score, "ensemble": sc.score},
-                               flagged=(sc.risk_level != "Low").to_numpy(), types=types[te])
+        hold = evaluate_scores(
+            y[te],
+            {
+                "rules_only": sc.rule_score,
+                "isolation_forest": sc.iforest_score,
+                "autoencoder": sc.ae_score,
+                "ensemble": sc.score,
+            },
+            flagged=(sc.risk_level != "Low").to_numpy(),
+            types=types[te],
+        )
         # production model: refit on the full history
         final = AnomalyDetector(rule_cfg=rule_cfg, seed=s.seed, nn_backend=s.nn_backend).fit(f)
         final.stacker = _feedback_stacker(final, f, feedback)
         final.dup_scores = dup
         full = final.score(f)
-        full_eval = evaluate_scores(y, {"rules_only": full.rule_score, "isolation_forest": full.iforest_score,
-                                        "autoencoder": full.ae_score, "ensemble": full.score},
-                                    flagged=(full.risk_level != "Low").to_numpy(), types=types)
+        full_eval = evaluate_scores(
+            y,
+            {
+                "rules_only": full.rule_score,
+                "isolation_forest": full.iforest_score,
+                "autoencoder": full.ae_score,
+                "ensemble": full.score,
+            },
+            flagged=(full.risk_level != "Low").to_numpy(),
+            types=types,
+        )
         ens = hold["table"].set_index("model").loc["ensemble"]
-        metrics = {"holdout_pr_auc": ens.pr_auc, "holdout_precision_at_50": ens["precision@50"],
-                   "holdout_precision_at_100": ens["precision@100"],
-                   "holdout_rules_pr_auc": hold["table"].set_index("model").loc["rules_only", "pr_auc"],
-                   "full_pr_auc": full_eval["table"].set_index("model").loc["ensemble", "pr_auc"],
-                   "flag_rate": float((full.risk_level != "Low").mean()),
-                   "high_rate": float((full.risk_level == "High").mean()),
-                   "n_items": len(f), "n_labelled": int(y.sum()),
-                   "feedback_labels": 0 if feedback is None else len(feedback)}
-        run["params"] = {"features": ",".join(ML_FEATURES), "nn_backend": final.ae.backend, "train_cut": str(cut),
-                         "window_days": window_days,
-                         "approval_threshold": s.approval_threshold_inr, "stacker": final.stacker is not None}
+        metrics = {
+            "holdout_pr_auc": ens.pr_auc,
+            "holdout_precision_at_50": ens["precision@50"],
+            "holdout_precision_at_100": ens["precision@100"],
+            "holdout_rules_pr_auc": hold["table"].set_index("model").loc["rules_only", "pr_auc"],
+            "full_pr_auc": full_eval["table"].set_index("model").loc["ensemble", "pr_auc"],
+            "flag_rate": float((full.risk_level != "Low").mean()),
+            "high_rate": float((full.risk_level == "High").mean()),
+            "n_items": len(f),
+            "n_labelled": int(y.sum()),
+            "feedback_labels": 0 if feedback is None else len(feedback),
+        }
+        run["params"] = {
+            "features": ",".join(ML_FEATURES),
+            "nn_backend": final.ae.backend,
+            "train_cut": str(cut),
+            "window_days": window_days,
+            "approval_threshold": s.approval_threshold_inr,
+            "stacker": final.stacker is not None,
+        }
         run["metrics"] = metrics
         rep = _reports()
         hold["table"].to_csv(rep / "anomaly_holdout.csv", index=False)
@@ -174,23 +207,32 @@ def train_anomaly(tables: dict[str, pd.DataFrame] | None = None, quick: bool = F
 
     if promoted:
         publish_anomaly(final, f_all, pairs, version)
-    _json(_reports() / "anomaly_metrics.json", {**metrics, "version": version, "promoted": promoted,
-                                                "feature_secs": t_feat["ms"] / 1000})
-    log.info("anomaly: holdout PR-AUC %.3f (rules %.3f), v%d promoted=%s", metrics["holdout_pr_auc"],
-             metrics["holdout_rules_pr_auc"], version, promoted)
+    _json(
+        _reports() / "anomaly_metrics.json",
+        {**metrics, "version": version, "promoted": promoted, "feature_secs": t_feat["ms"] / 1000},
+    )
+    log.info(
+        "anomaly: holdout PR-AUC %.3f (rules %.3f), v%d promoted=%s",
+        metrics["holdout_pr_auc"],
+        metrics["holdout_rules_pr_auc"],
+        version,
+        promoted,
+    )
     return {"metrics": metrics, "version": version, "promoted": promoted, "holdout": hold, "full": full_eval}
 
 
-def _maybe_promote(reg: Registry, name: str, version: int, value: float, policy: str,
-                   higher_is_better: bool) -> bool:
+def _maybe_promote(reg: Registry, name: str, version: int, value: float, policy: str, higher_is_better: bool) -> bool:
     """Promote to Production when policy allows (always / if_better / never)."""
     if policy == "never":
         reg.transition(name, version, "Staging")
         return False
     prod = reg.get_version(name, "Production")
     key = "holdout_pr_auc" if name == ANOMALY_MODEL else "gbm_wmape"
-    better = prod is None or policy == "always" or (
-        value > prod["metrics"].get(key, -np.inf) if higher_is_better else value < prod["metrics"].get(key, np.inf))
+    better = (
+        prod is None
+        or policy == "always"
+        or (value > prod["metrics"].get(key, -np.inf) if higher_is_better else value < prod["metrics"].get(key, np.inf))
+    )
     reg.transition(name, version, "Production" if better else "Staging")
     return bool(better)
 
@@ -223,7 +265,9 @@ def _forecast_chart(bt: pd.DataFrame, panel, path: Path, n: int = 3) -> None:
         for k, (o, gg) in enumerate(gi.groupby("origin")):
             wk = [o + pd.Timedelta(weeks=int(h - 1)) for h in gg.h]
             ax.fill_between(wk, gg.p10, gg.p90, color="#2563eb", alpha=0.12, lw=0)
-            ax.plot(wk, gg.yhat, color="#2563eb", lw=1.6, label="GBM forecast (8-wk, rolling origins)" if k == 0 else None)
+            ax.plot(
+                wk, gg.yhat, color="#2563eb", lw=1.6, label="GBM forecast (8-wk, rolling origins)" if k == 0 else None
+            )
         r = panel.series.iloc[i]
         ax.set_title(f"{r.matnr} · plant {r.werks} · {r.matkl}", fontsize=10, loc="left")
         ax.grid(alpha=0.25)
@@ -234,8 +278,9 @@ def _forecast_chart(bt: pd.DataFrame, panel, path: Path, n: int = 3) -> None:
     plt.close(fig)
 
 
-def train_forecast(tables: dict[str, pd.DataFrame] | None = None, quick: bool = False,
-                   promote: str = "if_better") -> dict:
+def train_forecast(
+    tables: dict[str, pd.DataFrame] | None = None, quick: bool = False, promote: str = "if_better"
+) -> dict:
     """Backtest, train, register and publish forecasts + reorder recommendations."""
     s = get_settings()
     tables = tables or load_source_tables()
@@ -261,21 +306,37 @@ def train_forecast(tables: dict[str, pd.DataFrame] | None = None, quick: bool = 
 
         ov = overall.set_index("model")
         best_base = ov.drop(index="gbm").wmape.min()
-        metrics = {"gbm_wmape": ov.loc["gbm", "wmape"], "best_baseline_wmape": best_base,
-                   "best_baseline": ov.drop(index="gbm").wmape.idxmin(),
-                   "mrp_plan_wmape": ov.loc["mrp_plan", "wmape"], "seasonal_naive_wmape": ov.loc["seasonal_naive", "wmape"],
-                   "gbm_bias": ov.loc["gbm", "bias"], "interval_coverage_raw": raw_cov,
-                   "interval_coverage_calibrated": cal_cov, "interval_scale": k,
-                   "n_series": len(panel.series), "n_origins": n_origins,
-                   "gbm_wmape_beyond_plan": by_zone[(by_zone.model == "gbm") & by_zone.zone.str.startswith("h5")].wmape.iloc[0]}
-        run["params"] = {"horizon": 8, "n_origins": n_origins, "backend": s.gbm_backend,
-                         "lags": "1,2,3,4,8,13,52", "plan_dropout": model.plan_dropout}
+        metrics = {
+            "gbm_wmape": ov.loc["gbm", "wmape"],
+            "best_baseline_wmape": best_base,
+            "best_baseline": ov.drop(index="gbm").wmape.idxmin(),
+            "mrp_plan_wmape": ov.loc["mrp_plan", "wmape"],
+            "seasonal_naive_wmape": ov.loc["seasonal_naive", "wmape"],
+            "gbm_bias": ov.loc["gbm", "bias"],
+            "interval_coverage_raw": raw_cov,
+            "interval_coverage_calibrated": cal_cov,
+            "interval_scale": k,
+            "n_series": len(panel.series),
+            "n_origins": n_origins,
+            "gbm_wmape_beyond_plan": by_zone[(by_zone.model == "gbm") & by_zone.zone.str.startswith("h5")].wmape.iloc[
+                0
+            ],
+        }
+        run["params"] = {
+            "horizon": 8,
+            "n_origins": n_origins,
+            "backend": s.gbm_backend,
+            "lags": "1,2,3,4,8,13,52",
+            "plan_dropout": model.plan_dropout,
+        }
         run["metrics"] = metrics
         rep = _reports()
         overall.to_csv(rep / "forecast_backtest_overall.csv", index=False)
         by_zone.to_csv(rep / "forecast_backtest_by_zone.csv", index=False)
         by_group.to_csv(rep / "forecast_backtest_by_group.csv", index=False)
-        bt.to_parquet(rep / "forecast_backtest.parquet") if _has_parquet() else bt.to_csv(rep / "forecast_backtest.csv.gz", index=False)
+        bt.to_parquet(rep / "forecast_backtest.parquet") if _has_parquet() else bt.to_csv(
+            rep / "forecast_backtest.csv.gz", index=False
+        )
         _forecast_chart(bt, panel, rep / "forecast_vs_actual.png")
         run["artifacts"] = [str(rep / "forecast_backtest_overall.csv"), str(rep / "forecast_vs_actual.png")]
         run["model"], run["model_name"] = model, FORECAST_MODEL
@@ -288,10 +349,24 @@ def train_forecast(tables: dict[str, pd.DataFrame] | None = None, quick: bool = 
         metrics["stockout_high"] = int((reorder.stockout_risk == "High").sum())
         metrics["stockout_medium"] = int((reorder.stockout_risk == "Medium").sum())
     _json(_reports() / "forecast_metrics.json", {**metrics, "version": version, "promoted": promoted})
-    log.info("forecast: GBM WMAPE %.3f vs best baseline %.3f (%s), coverage %.2f->%.2f, v%d promoted=%s",
-             metrics["gbm_wmape"], best_base, metrics["best_baseline"], raw_cov, cal_cov, version, promoted)
-    return {"metrics": metrics, "version": version, "promoted": promoted, "overall": overall, "by_zone": by_zone,
-            "by_group": by_group}
+    log.info(
+        "forecast: GBM WMAPE %.3f vs best baseline %.3f (%s), coverage %.2f->%.2f, v%d promoted=%s",
+        metrics["gbm_wmape"],
+        best_base,
+        metrics["best_baseline"],
+        raw_cov,
+        cal_cov,
+        version,
+        promoted,
+    )
+    return {
+        "metrics": metrics,
+        "version": version,
+        "promoted": promoted,
+        "overall": overall,
+        "by_zone": by_zone,
+        "by_group": by_group,
+    }
 
 
 def publish_forecast(model: GBMForecaster, panel, tables: dict[str, pd.DataFrame], version: int) -> pd.DataFrame:
@@ -305,10 +380,20 @@ def publish_forecast(model: GBMForecaster, panel, tables: dict[str, pd.DataFrame
     rows = []
     for i, r in enumerate(panel.series.itertuples()):
         for h, w in enumerate(weeks):
-            rows.append((r.matnr, r.werks, w.date().isoformat(), float(fc["p50"][i, h]), float(p10[i, h]),
-                         float(p90[i, h]), str(version)))
-    write_table("demand_forecast", pd.DataFrame(rows, columns=["matnr", "werks", "week", "yhat", "p10", "p90",
-                                                               "model_version"]))
+            rows.append(
+                (
+                    r.matnr,
+                    r.werks,
+                    w.date().isoformat(),
+                    float(fc["p50"][i, h]),
+                    float(p10[i, h]),
+                    float(p90[i, h]),
+                    str(version),
+                )
+            )
+    write_table(
+        "demand_forecast", pd.DataFrame(rows, columns=["matnr", "werks", "week", "yhat", "p10", "p90", "model_version"])
+    )
     reorder = recommend_reorder_points(panel.series, fc["p50"], sigma, tables)
     write_table("reorder_recommendations", reorder)
     return reorder
@@ -326,17 +411,13 @@ def _align_sigma(model: GBMForecaster, panel) -> np.ndarray:
 
 
 def _has_parquet() -> bool:
-    try:
-        import pyarrow  # noqa: F401
-
-        return True
-    except Exception:
-        return False
+    return importlib.util.find_spec("pyarrow") is not None
 
 
 # ============================================================================ all
-def train_all(modules: tuple[str, ...] = ("anomaly", "forecast", "copilot"), quick: bool = False,
-              promote: str = "if_better") -> dict:
+def train_all(
+    modules: tuple[str, ...] = ("anomaly", "forecast", "copilot"), quick: bool = False, promote: str = "if_better"
+) -> dict:
     """Train every requested module on the current database."""
     tables = load_source_tables()
     out: dict = {}

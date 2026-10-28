@@ -18,8 +18,22 @@ from supplysight.utils import optional_import
 
 LAGS = (1, 2, 3, 4, 8, 13, 52)
 FEATURES = [f"lag_{k}" for k in LAGS] + [
-    "roll_mean_4", "roll_mean_8", "roll_mean_13", "roll_std_8", "plan", "plan_lag_1", "plan_known",
-    "week_of_year", "month", "festive", "wedding", "summer", "winter", "matkl_code", "plant_code", "is_pack",
+    "roll_mean_4",
+    "roll_mean_8",
+    "roll_mean_13",
+    "roll_std_8",
+    "plan",
+    "plan_lag_1",
+    "plan_known",
+    "week_of_year",
+    "month",
+    "festive",
+    "wedding",
+    "summer",
+    "winter",
+    "matkl_code",
+    "plant_code",
+    "is_pack",
 ]
 FROZEN_WEEKS = 4  # planned production is known this many weeks ahead
 
@@ -27,24 +41,44 @@ FROZEN_WEEKS = 4  # planned production is known this many weeks ahead
 def calendar_flags(week: pd.Timestamp) -> dict[str, float]:
     """Calendar and Indian seasonal-event flags for a week (Monday)."""
     m = (week + pd.Timedelta(days=21)).month  # production runs ~3 weeks ahead of sales
-    return {"week_of_year": float(week.isocalendar().week), "month": float(week.month),
-            "festive": float(m in (9, 10, 11)), "wedding": float(m in (11, 12, 1, 2, 4, 5)),
-            "summer": float(m in (3, 4, 5, 6)), "winter": float(m in (11, 12, 1, 2))}
+    return {
+        "week_of_year": float(week.isocalendar().week),
+        "month": float(week.month),
+        "festive": float(m in (9, 10, 11)),
+        "wedding": float(m in (11, 12, 1, 2, 4, 5)),
+        "summer": float(m in (3, 4, 5, 6)),
+        "winter": float(m in (11, 12, 1, 2)),
+    }
 
 
 def make_regressor(backend: str = "auto", quantile: float | None = None, seed: int = 42):
     """Return a LightGBM or sklearn gradient-boosting regressor."""
     lgb = optional_import("lightgbm") if backend in ("auto", "lightgbm") else None
     if lgb is not None:  # pragma: no cover - not installed in the minimal image
-        kw = dict(n_estimators=500, learning_rate=0.04, num_leaves=31, min_child_samples=20,
-                  subsample=0.8, subsample_freq=1, colsample_bytree=0.8, random_state=seed, verbose=-1)
+        kw = dict(
+            n_estimators=500,
+            learning_rate=0.04,
+            num_leaves=31,
+            min_child_samples=20,
+            subsample=0.8,
+            subsample_freq=1,
+            colsample_bytree=0.8,
+            random_state=seed,
+            verbose=-1,
+        )
         if quantile is not None:
             return lgb.LGBMRegressor(objective="quantile", alpha=quantile, **kw)
         return lgb.LGBMRegressor(objective="l1", **kw)
     from sklearn.ensemble import HistGradientBoostingRegressor
 
-    kw = dict(max_iter=400, learning_rate=0.05, max_leaf_nodes=31, min_samples_leaf=20,
-              l2_regularization=0.1, random_state=seed)
+    kw = dict(
+        max_iter=400,
+        learning_rate=0.05,
+        max_leaf_nodes=31,
+        min_samples_leaf=20,
+        l2_regularization=0.1,
+        random_state=seed,
+    )
     if quantile is not None:
         return HistGradientBoostingRegressor(loss="quantile", quantile=quantile, **kw)
     return HistGradientBoostingRegressor(loss="absolute_error", **kw)
@@ -59,8 +93,15 @@ def series_scale(Y: np.ndarray, t_end: int, window: int = 26) -> np.ndarray:
     return np.where(np.isfinite(s) & (s > 0), s, 1.0)
 
 
-def column_features(Y: np.ndarray, P: np.ndarray, t: int, weeks: pd.DatetimeIndex, scale: np.ndarray,
-                    static: np.ndarray, plan_known: np.ndarray | bool = True) -> np.ndarray:
+def column_features(
+    Y: np.ndarray,
+    P: np.ndarray,
+    t: int,
+    weeks: pd.DatetimeIndex,
+    scale: np.ndarray,
+    static: np.ndarray,
+    plan_known: np.ndarray | bool = True,
+) -> np.ndarray:
     """Feature matrix [S, F] for target week ``t`` using only weeks < t of ``Y``."""
     S = Y.shape[0]
     cols = []
@@ -99,8 +140,13 @@ class GBMForecaster:
         s = panel.series
         if not self.matkl_codes:
             self.matkl_codes = {g: i for i, g in enumerate(sorted(s.matkl.unique()))}
-        return np.column_stack([s.matkl.map(self.matkl_codes).fillna(-1).to_numpy(float),
-                                (s.werks == "2000").to_numpy(float), (s.mtart == "VERP").to_numpy(float)])
+        return np.column_stack(
+            [
+                s.matkl.map(self.matkl_codes).fillna(-1).to_numpy(float),
+                (s.werks == "2000").to_numpy(float),
+                (s.mtart == "VERP").to_numpy(float),
+            ]
+        )
 
     def training_rows(self, panel: Panel, t_end: int) -> tuple[np.ndarray, np.ndarray]:
         """Stack (X, y) for all target weeks min_t <= t < t_end (no future leakage)."""
@@ -140,7 +186,9 @@ class GBMForecaster:
             extra = origin + horizon - T
             Y = np.hstack([Y, np.full((S, extra), np.nan)])
             P = np.hstack([panel.P, np.full((S, extra), np.nan)])
-            weeks = panel.weeks.append(pd.date_range(panel.weeks[-1] + pd.Timedelta(days=7), periods=extra, freq="W-MON"))
+            weeks = panel.weeks.append(
+                pd.date_range(panel.weeks[-1] + pd.Timedelta(days=7), periods=extra, freq="W-MON")
+            )
         else:
             P, weeks = panel.P, panel.weeks
         Y[:, origin:] = np.nan
@@ -165,7 +213,7 @@ def baseline_forecasts(Y: np.ndarray, origin: int, horizon: int) -> dict[str, np
     """Naive, seasonal-naive and 4-week moving-average forecasts from ``origin``."""
     S = Y.shape[0]
     last = Y[:, origin - 1]
-    ma4 = np.nanmean(Y[:, origin - 4: origin], axis=1)
+    ma4 = np.nanmean(Y[:, origin - 4 : origin], axis=1)
     out = {"naive": np.repeat(last[:, None], horizon, 1), "moving_avg_4": np.repeat(ma4[:, None], horizon, 1)}
     sn = np.zeros((S, horizon))
     for h in range(horizon):

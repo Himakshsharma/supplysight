@@ -1,1 +1,5 @@
--e .[serve,dev]
+# Runtime for hosted deployment (Streamlit Community Cloud runs the dashboard with the full stack in-process).
+# Local development: pip install -e ".[serve,dev]"
+-e .
+streamlit>=1.40
+plotly>=5.19

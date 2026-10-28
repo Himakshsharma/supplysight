@@ -23,8 +23,9 @@ def recall_at_k(y: np.ndarray, s: np.ndarray, k: int) -> float:
     return float(y[top].sum() / y.sum())
 
 
-def evaluate_scores(y: np.ndarray, scores: dict[str, np.ndarray], flagged: np.ndarray | None = None,
-                    types: pd.Series | None = None) -> dict:
+def evaluate_scores(
+    y: np.ndarray, scores: dict[str, np.ndarray], flagged: np.ndarray | None = None, types: pd.Series | None = None
+) -> dict:
     """Compare several scorers on the same labelled rows.
 
     Returns ``{"table": DataFrame, "per_type_recall": DataFrame | None}``.
@@ -34,13 +35,25 @@ def evaluate_scores(y: np.ndarray, scores: dict[str, np.ndarray], flagged: np.nd
     n_pos = int(y.sum())
     for name, s in scores.items():
         s = np.asarray(s, float)
-        rows.append({"model": name, "pr_auc": average_precision_score(y, s) if n_pos else np.nan,
-                     "precision@50": precision_at_k(y, s, 50), "precision@100": precision_at_k(y, s, 100),
-                     f"recall@{n_pos}": recall_at_k(y, s, n_pos), "recall@2x": recall_at_k(y, s, 2 * n_pos)})
+        rows.append(
+            {
+                "model": name,
+                "pr_auc": average_precision_score(y, s) if n_pos else np.nan,
+                "precision@50": precision_at_k(y, s, 50),
+                "precision@100": precision_at_k(y, s, 100),
+                f"recall@{n_pos}": recall_at_k(y, s, n_pos),
+                "recall@2x": recall_at_k(y, s, 2 * n_pos),
+            }
+        )
     table = pd.DataFrame(rows)
     per_type = None
     if types is not None and flagged is not None:
         t = pd.DataFrame({"type": types.fillna("normal"), "flagged": np.asarray(flagged).astype(int)})
-        per_type = (t[t.type != "normal"].groupby("type").flagged.agg(["mean", "size"])
-                    .rename(columns={"mean": "recall_flagged", "size": "n"}).reset_index())
+        per_type = (
+            t[t.type != "normal"]
+            .groupby("type")
+            .flagged.agg(["mean", "size"])
+            .rename(columns={"mean": "recall_flagged", "size": "n"})
+            .reset_index()
+        )
     return {"table": table, "per_type_recall": per_type, "n_pos": n_pos, "n": len(y)}

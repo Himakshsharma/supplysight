@@ -5,19 +5,16 @@ Usage: python scripts/make_eda_charts.py   (writes docs/images/*.png)
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-import matplotlib  # noqa: E402
+import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
-from supplysight.data import load_source_tables  # noqa: E402
+from supplysight.data import load_source_tables
 
 OUT = Path(__file__).resolve().parents[1] / "docs" / "images"
 COLORS = ["#2563eb", "#0d9488", "#d97706", "#7c3aed", "#db2777", "#64748b"]
@@ -37,29 +34,44 @@ def main() -> None:
     for c, col in zip(groups, COLORS, strict=False):
         ax.plot(g.index, g[c] / g[c].mean(), label=c, color=col, lw=2)
     ax.axhline(1, color="#94a3b8", lw=0.8)
-    ax.set_title("Planned production by finished-goods group (index, mean = 1): summer sunscreen peak, festive lipsticks/creams",
-                 fontsize=10, loc="left")
+    ax.set_title(
+        "Planned production by finished-goods group (index, mean = 1): summer sunscreen peak, festive lipsticks/creams",
+        fontsize=10,
+        loc="left",
+    )
     ax.legend(frameon=False, ncol=4, fontsize=9)
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     fig.savefig(OUT / "eda_seasonality.png", dpi=120)
     plt.close(fig)
 
-    po = t["ekpo"].merge(t["ekko"][["ebeln", "bedat"]], on="ebeln").merge(t["anomaly_labels"], on=["ebeln", "ebelp"],
-                                                                           how="left")
+    po = (
+        t["ekpo"]
+        .merge(t["ekko"][["ebeln", "bedat"]], on="ebeln")
+        .merge(t["anomaly_labels"], on=["ebeln", "ebelp"], how="left")
+    )
     med = po[po.anomaly_type.isna()].groupby("matnr").netpr.median()
     po["price_ratio"] = po.netpr / po.matnr.map(med)
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
     bins = np.linspace(0.5, 3.2, 60)
-    axes[0].hist(po[po.anomaly_type.isna()].price_ratio.clip(0.5, 3.2), bins, color="#94a3b8", label="normal", density=True)
-    axes[0].hist(po[po.anomaly_type == "price_spike"].price_ratio.clip(0.5, 3.2), bins, color="#c0392b", alpha=0.7,
-                 label="injected price spike", density=True)
+    axes[0].hist(
+        po[po.anomaly_type.isna()].price_ratio.clip(0.5, 3.2), bins, color="#94a3b8", label="normal", density=True
+    )
+    axes[0].hist(
+        po[po.anomaly_type == "price_spike"].price_ratio.clip(0.5, 3.2),
+        bins,
+        color="#c0392b",
+        alpha=0.7,
+        label="injected price spike",
+        density=True,
+    )
     axes[0].set_title("Unit price / material median", fontsize=10, loc="left")
     axes[0].legend(frameon=False, fontsize=8)
     vc = po.anomaly_type.value_counts()
     axes[1].barh(vc.index[::-1], vc.values[::-1], color=COLORS[0])
-    axes[1].set_title(f"Injected anomalies ({len(po[po.anomaly_type.notna()])} of {len(po)} PO items)", fontsize=10,
-                      loc="left")
+    axes[1].set_title(
+        f"Injected anomalies ({len(po[po.anomaly_type.notna()])} of {len(po)} PO items)", fontsize=10, loc="left"
+    )
     for a in axes:
         a.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()

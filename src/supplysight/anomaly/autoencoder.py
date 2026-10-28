@@ -28,9 +28,16 @@ class Autoencoder:
         else:
             from sklearn.neural_network import MLPRegressor
 
-            self.model = MLPRegressor(hidden_layer_sizes=(16, 6, 16), activation="tanh", alpha=1e-3,
-                                      learning_rate_init=3e-3, max_iter=self.epochs, early_stopping=True,
-                                      random_state=self.seed, n_iter_no_change=15)
+            self.model = MLPRegressor(
+                hidden_layer_sizes=(16, 6, 16),
+                activation="tanh",
+                alpha=1e-3,
+                learning_rate_init=3e-3,
+                max_iter=self.epochs,
+                early_stopping=True,
+                random_state=self.seed,
+                n_iter_no_change=15,
+            )
             self.model.fit(x, x)
         return self
 
@@ -58,15 +65,16 @@ class Autoencoder:
 
         torch.manual_seed(self.seed)
         d = x.shape[1]
-        net = nn.Sequential(nn.Linear(d, 16), nn.Tanh(), nn.Linear(16, 6), nn.Tanh(),
-                            nn.Linear(6, 16), nn.Tanh(), nn.Linear(16, d))
+        net = nn.Sequential(
+            nn.Linear(d, 16), nn.Tanh(), nn.Linear(16, 6), nn.Tanh(), nn.Linear(6, 16), nn.Tanh(), nn.Linear(16, d)
+        )
         opt = torch.optim.Adam(net.parameters(), lr=3e-3, weight_decay=1e-4)
         xt = torch.tensor(x, dtype=torch.float32)
         gen = torch.Generator().manual_seed(self.seed)
         for _ in range(self.epochs):
             perm = torch.randperm(len(xt), generator=gen)
             for i in range(0, len(xt), 256):
-                b = xt[perm[i: i + 256]]
+                b = xt[perm[i : i + 256]]
                 opt.zero_grad()
                 loss = ((net(b) - b) ** 2).mean()
                 loss.backward()
@@ -80,6 +88,12 @@ class Autoencoder:
             return False
         import torch
 
-        torch.onnx.export(self.model, torch.zeros(1, n_features), path, input_names=["x"],
-                          output_names=["recon"], dynamic_axes={"x": {0: "n"}, "recon": {0: "n"}})
+        torch.onnx.export(
+            self.model,
+            torch.zeros(1, n_features),
+            path,
+            input_names=["x"],
+            output_names=["recon"],
+            dynamic_axes={"x": {0: "n"}, "recon": {0: "n"}},
+        )
         return True

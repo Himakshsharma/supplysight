@@ -52,10 +52,29 @@ def test_services_and_feedback_loop(trained):
 
     t = core.tables()
     info = t["eina"].iloc[0]
-    normal = core.score_po({"lifnr": info.lifnr, "matnr": info.matnr, "werks": "1000", "menge": 50, "netpr": 1.0,
-                            "lead_time_days": 14, "created_by": "RSHARMA"})
-    risky = core.score_po({"lifnr": info.lifnr, "matnr": info.matnr, "werks": "1000", "menge": 50, "netpr": 1.0,
-                           "lead_time_days": 0, "created_by": "RSHARMA", "created_at": "2026-06-28T23:30:00"})
+    normal = core.score_po(
+        {
+            "lifnr": info.lifnr,
+            "matnr": info.matnr,
+            "werks": "1000",
+            "menge": 50,
+            "netpr": 1.0,
+            "lead_time_days": 14,
+            "created_by": "RSHARMA",
+        }
+    )
+    risky = core.score_po(
+        {
+            "lifnr": info.lifnr,
+            "matnr": info.matnr,
+            "werks": "1000",
+            "menge": 50,
+            "netpr": 1.0,
+            "lead_time_days": 0,
+            "created_by": "RSHARMA",
+            "created_at": "2026-06-28T23:30:00",
+        }
+    )
     assert risky["score"] >= normal["score"]
     assert risky["reasons"]
     with pytest.raises(core.NotFound):
@@ -84,14 +103,40 @@ def test_drift_and_retrain_loop(trained, small_cfg):
     from supplysight.datagen.generator import generate, write_csv
     from supplysight.monitoring.retrain import drift_dir, run_retrain
 
-    cfg = replace(small_cfg, start="2026-07-01", end="2026-09-30", trend_anchor=small_cfg.start, id_offset=100_000,
-                  vendor_offset=100, drift={"price_shock": 1.25, "demand_surge": {"FG-LIP": 1.6, "FG-CREAM": 1.4},
-                                            "new_vendor_share": 0.15})
+    cfg = replace(
+        small_cfg,
+        start="2026-07-01",
+        end="2026-09-30",
+        trend_anchor=small_cfg.start,
+        id_offset=100_000,
+        vendor_offset=100,
+        drift={"price_shock": 1.25, "demand_surge": {"FG-LIP": 1.6, "FG-CREAM": 1.4}, "new_vendor_share": 0.15},
+    )
     tabs = generate(cfg)
-    keep = ["lfa1", "eina", "eine", "eban", "ekko", "ekpo", "mkpf", "mseg", "afko", "afpo", "mard", "plaf",
-            "anomaly_labels"]
+    keep = [
+        "lfa1",
+        "eina",
+        "eine",
+        "eban",
+        "ekko",
+        "ekpo",
+        "mkpf",
+        "mseg",
+        "afko",
+        "afpo",
+        "mard",
+        "plaf",
+        "anomaly_labels",
+    ]
     write_csv({k: v for k, v in tabs.items() if k in keep}, drift_dir())
     out = run_retrain(force=True)
     d = out["drift"]
     assert d["retrain_recommended"] and d["anomaly_score_psi"] > 0
     assert out["retrained"] and "promoted" in out["decision"]["anomaly"]
+
+
+def test_bootstrap_detects_trained_state(trained):
+    from supplysight.bootstrap import ensure_demo_state, is_ready
+
+    assert is_ready()
+    assert ensure_demo_state() is False  # nothing is rebuilt when models and tables exist

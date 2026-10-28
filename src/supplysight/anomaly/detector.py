@@ -26,24 +26,43 @@ from supplysight.features.po_features import ML_FEATURES
 
 # +1: high values are risky, -1: low values are risky, 0: not used for explanations
 DIRECTION = {
-    "log_price_ratio": 1, "log_price_vs_info": 1, "log_qty_ratio": 1, "log_weeks_cover": 1,
-    "log_pr_ratio": 1, "log_tenure_days": -1, "log_lt_ratio": -1, "is_offhours": 1, "is_weekend": 1,
-    "requester_freq": 0, "value_to_threshold": 0, "same_day_cluster": 1, "vendor_dup_score": 1,
-    "log_vendor_prior_pos": -1, "no_info_record": 1,
+    "log_price_ratio": 1,
+    "log_price_vs_info": 1,
+    "log_qty_ratio": 1,
+    "log_weeks_cover": 1,
+    "log_pr_ratio": 1,
+    "log_tenure_days": -1,
+    "log_lt_ratio": -1,
+    "is_offhours": 1,
+    "is_weekend": 1,
+    "requester_freq": 0,
+    "value_to_threshold": 0,
+    "same_day_cluster": 1,
+    "vendor_dup_score": 1,
+    "log_vendor_prior_pos": -1,
+    "no_info_record": 1,
 }
 
 
 # an ML explanation is skipped when a rule reason already covers the same signal
-RULE_KEYWORDS = {"log_lt_ratio": "lead time", "log_tenure_days": "days earlier", "is_offhours": "business hours",
-                 "is_weekend": "business hours", "same_day_cluster": "split PO", "vendor_dup_score": "duplicate",
-                 "no_info_record": "info record"}
+RULE_KEYWORDS = {
+    "log_lt_ratio": "lead time",
+    "log_tenure_days": "days earlier",
+    "is_offhours": "business hours",
+    "is_weekend": "business hours",
+    "same_day_cluster": "split PO",
+    "vendor_dup_score": "duplicate",
+    "no_info_record": "info record",
+}
 
 
 def _reason(feat: str, r: pd.Series) -> str | None:
     desc = f"{r.matnr} ({r.maktx})" if isinstance(r.get("maktx"), str) else str(r.matnr)
     if feat == "log_price_ratio":
-        return (f"Unit price {_inr(r.netpr)} is {r.price_ratio:.1f}× the 90-day median "
-                f"({_inr(r.ref_price)}) for material {desc}")
+        return (
+            f"Unit price {_inr(r.netpr)} is {r.price_ratio:.1f}× the 90-day median "
+            f"({_inr(r.ref_price)}) for material {desc}"
+        )
     if feat == "log_price_vs_info":
         return f"Unit price is {r.price_vs_info:.1f}× the contracted info-record price"
     if feat == "log_qty_ratio":
@@ -104,8 +123,7 @@ class AnomalyDetector:
         # binary / near-constant columns: avoid division blow-up
         self.scaler.scale_ = np.where(self.scaler.scale_ < 1e-6, 1.0, self.scaler.scale_)
         x = self._x(f)
-        self.iforest = IsolationForest(n_estimators=300, max_samples=min(512, len(x)),
-                                       random_state=self.seed).fit(x)
+        self.iforest = IsolationForest(n_estimators=300, max_samples=min(512, len(x)), random_state=self.seed).fit(x)
         if_raw = -self.iforest.score_samples(x)
         keep = if_raw <= np.quantile(if_raw, 0.95)  # trimmed training: AE learns "normal"
         self.ae = Autoencoder(self.nn_backend, self.seed).fit(x[keep])
@@ -116,8 +134,10 @@ class AnomalyDetector:
         mad = 1.4826 * np.median(np.abs(raw - self.explain_center), axis=0)
         self.explain_scale = np.maximum.reduce([mad, 0.5 * raw.std(axis=0), np.full(raw.shape[1], 1e-3)])
         scores = self._combine(f, x)["score"].to_numpy()
-        self.thresholds = {"high": float(max(np.quantile(scores, 0.975), 0.6)),
-                           "medium": float(max(np.quantile(scores, 0.925), 0.3))}
+        self.thresholds = {
+            "high": float(max(np.quantile(scores, 0.975), 0.6)),
+            "medium": float(max(np.quantile(scores, 0.925), 0.3)),
+        }
         return self
 
     # ------------------------------------------------------------------ score
@@ -132,9 +152,17 @@ class AnomalyDetector:
         if self.stacker is not None:  # learned from analyst feedback (closing the loop)
             z = np.column_stack([rules.rule_score, p_if, p_ae, ml_tail])
             score = 0.5 * score + 0.5 * self.stacker.predict_proba(z)[:, 1]
-        return pd.DataFrame({"score": score, "rule_score": rules.rule_score.to_numpy(), "iforest_score": p_if,
-                             "ae_score": p_ae, "ml_tail": ml_tail, "rule_reasons": rules.rule_reasons.to_numpy()},
-                            index=f.index)
+        return pd.DataFrame(
+            {
+                "score": score,
+                "rule_score": rules.rule_score.to_numpy(),
+                "iforest_score": p_if,
+                "ae_score": p_ae,
+                "ml_tail": ml_tail,
+                "rule_reasons": rules.rule_reasons.to_numpy(),
+            },
+            index=f.index,
+        )
 
     def score(self, f: pd.DataFrame, top_k: int = 3) -> pd.DataFrame:
         """Score feature rows; returns score, risk_level, reasons and component scores."""
@@ -159,6 +187,7 @@ class AnomalyDetector:
                         rs.append(txt)
             reasons.append(rs[:top_k])
         out["reasons"] = reasons
-        out["risk_level"] = np.select([out.score >= self.thresholds["high"], out.score >= self.thresholds["medium"]],
-                                      ["High", "Medium"], "Low")
+        out["risk_level"] = np.select(
+            [out.score >= self.thresholds["high"], out.score >= self.thresholds["medium"]], ["High", "Medium"], "Low"
+        )
         return out.drop(columns=["rule_reasons"])

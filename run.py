@@ -1,13 +1,13 @@
 """Cross-platform task runner (works on Windows without `make`).
 
-    python run.py setup       # pip install -e ".[serve,dev]"
-    python run.py all         # data -> train -> drift report -> evaluation
-    python run.py api         # FastAPI on http://localhost:8000/docs
-    python run.py dashboard   # Streamlit on http://localhost:8501
-    python run.py test        # pytest with coverage
-    python run.py drift       # simulate a new quarter + drift report
-    python run.py retrain     # champion/challenger retraining on the new quarter
-    python run.py mlflow      # local MLflow UI on http://localhost:5000
+python run.py setup       # pip install -e ".[serve,dev]"
+python run.py all         # data -> train -> drift report -> evaluation
+python run.py api         # FastAPI on http://localhost:8000/docs
+python run.py dashboard   # Streamlit on http://localhost:8501
+python run.py test        # pytest with coverage
+python run.py drift       # simulate a new quarter + drift report
+python run.py retrain     # champion/challenger retraining on the new quarter
+python run.py mlflow      # local MLflow UI on http://localhost:5000
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ TASKS: dict[str, list[list[str]]] = {
     "api": [[PY, "-m", "uvicorn", "supplysight.api.main:app", "--host", "0.0.0.0", "--port", "8000"]],
     "dashboard": [[PY, "-m", "streamlit", "run", "dashboard/app.py"]],
     "mlflow": [[PY, "-m", "mlflow", "ui", "--port", "5000"]],
-    "lint": [[PY, "-m", "ruff", "check", "."], [PY, "-m", "black", "--check", "."]],
+    "lint": [[PY, "-m", "ruff", "check", "."], [PY, "-m", "ruff", "format", "--check", "."]],
 }
 TASKS["all"] = TASKS["data"] + TASKS["train"] + TASKS["drift"] + TASKS["eval"]
 

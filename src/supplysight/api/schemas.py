@@ -29,7 +29,9 @@ class POScoreRequest(BaseModel):
     menge: float = Field(gt=0, description="Order quantity", examples=[400])
     netpr: float = Field(gt=0, description="Net unit price (INR)", examples=[125.0])
     created_by: str = Field("API_USER", examples=["RSHARMA"])
-    created_at: str | None = Field(None, description="ISO timestamp; defaults to the next business day", examples=["2026-10-04T23:30:00"])
+    created_at: str | None = Field(
+        None, description="ISO timestamp; defaults to the next business day", examples=["2026-10-04T23:30:00"]
+    )
     eindt: str | None = Field(None, description="Delivery date (YYYY-MM-DD)")
     lead_time_days: int | None = Field(14, ge=0, le=365)
     pr_menge: float | None = Field(None, gt=0, description="Requisition quantity")
@@ -102,7 +104,9 @@ class ForecastResponse(BaseModel):
 
 
 class AskRequest(BaseModel):
-    question: str = Field(min_length=2, max_length=1000, examples=["Which vendor supplies glycerin and what is the lead time?"])
+    question: str = Field(
+        min_length=2, max_length=1000, examples=["Which vendor supplies glycerin and what is the lead time?"]
+    )
 
 
 class AskResponse(BaseModel):

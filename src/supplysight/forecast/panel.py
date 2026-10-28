@@ -43,11 +43,13 @@ def planned_requirements(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     bom = tables["stpo"].merge(tables["stko"][["stlnr", "matnr", "bmeng"]], on="stlnr")
     bom["per_unit"] = bom.menge.astype(float) / bom.bmeng.astype(float)
     hist = tables["afko"][["plnbez", "werks", "gamng", "gstrp"]].rename(
-        columns={"plnbez": "fg", "gamng": "qty", "gstrp": "date"})
+        columns={"plnbez": "fg", "gamng": "qty", "gstrp": "date"}
+    )
     plaf = tables.get("plaf")
     if plaf is not None and len(plaf):
         fut = plaf[["matnr", "plwrk", "gsmng", "psttr"]].rename(
-            columns={"matnr": "fg", "plwrk": "werks", "gsmng": "qty", "psttr": "date"})
+            columns={"matnr": "fg", "plwrk": "werks", "gsmng": "qty", "psttr": "date"}
+        )
         hist = pd.concat([hist, fut], ignore_index=True)
     x = hist.merge(bom[["matnr", "idnrk", "per_unit"]], left_on="fg", right_on="matnr")
     x["req"] = x.qty.astype(float) * x.per_unit
@@ -83,7 +85,7 @@ def build_panel(tables: dict[str, pd.DataFrame], min_nonzero: int = 8) -> Panel:
             P[i, j] = (0.0 if np.isnan(P[i, j]) else P[i, j]) + r.req
     # future weeks covered by the frozen plan: absent plan => 0 planned, beyond => unknown
     if last_plan > hist_weeks[-1]:
-        P[:, len(hist_weeks): wpos[last_plan] + 1] = np.nan_to_num(P[:, len(hist_weeks): wpos[last_plan] + 1])
+        P[:, len(hist_weeks) : wpos[last_plan] + 1] = np.nan_to_num(P[:, len(hist_weeks) : wpos[last_plan] + 1])
     mara = tables["mara"].set_index("matnr")
     keys["matkl"] = keys.matnr.map(mara.matkl)
     keys["mtart"] = keys.matnr.map(mara.mtart)

@@ -19,21 +19,40 @@ from supplysight.config import get_settings
 from supplysight.utils import get_logger, optional_import
 
 log = get_logger(__name__)
-STOP = set("""a an the and or of to in for on at by with from is are was were be been this that these those it its
+STOP = set(
+    """a an the and or of to in for on at by with from is are was were be been this that these those it its
 as do does did what which who whom how when where why can could should would may might must shall will i we you
-our your my me us they them their there here about into than then so if not no yes any all each per vs via up""".split())
+our your my me us they them their there here about into than then so if not no yes any all each per vs via up""".split()
+)
 
 
 _SUFFIXES = ("ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "als", "al", "ies", "es", "ed", "e", "s")
 # domain query expansion: Indian number words and SAP / procurement abbreviations
 EXPANSIONS = {
-    "lakh": "5,00,000 approval limit value", "lakhs": "5,00,000 approval limit value", "crore": "approval value",
-    "po": "purchase order", "pos": "purchase orders", "pr": "purchase requisition", "grn": "goods receipt",
-    "gr": "goods receipt", "coa": "certificate analysis", "minbe": "reorder point", "rop": "reorder point",
-    "supplier": "vendor", "suppliers": "vendors", "gst": "gstin", "fraud": "audit duplicate split",
-    "weekend": "after-hours sunday", "night": "after-hours", "rejected": "quarantine rejection",
-    "rated": "rating evaluation score", "rate": "rating evaluation", "rank": "rating evaluation",
-    "flagged": "anomaly flag review", "flag": "anomaly review", "late": "delivery performance",
+    "lakh": "5,00,000 approval limit value",
+    "lakhs": "5,00,000 approval limit value",
+    "crore": "approval value",
+    "po": "purchase order",
+    "pos": "purchase orders",
+    "pr": "purchase requisition",
+    "grn": "goods receipt",
+    "gr": "goods receipt",
+    "coa": "certificate analysis",
+    "minbe": "reorder point",
+    "rop": "reorder point",
+    "supplier": "vendor",
+    "suppliers": "vendors",
+    "gst": "gstin",
+    "fraud": "audit duplicate split",
+    "weekend": "after-hours sunday",
+    "night": "after-hours",
+    "rejected": "quarantine rejection",
+    "rated": "rating evaluation score",
+    "rate": "rating evaluation",
+    "rank": "rating evaluation",
+    "flagged": "anomaly flag review",
+    "flag": "anomaly review",
+    "late": "delivery performance",
 }
 
 
@@ -80,8 +99,15 @@ def chunk_sops(sops_dir: Path) -> list[Chunk]:
             lines = part.strip().splitlines()
             section = lines[0].lstrip("# ").strip()
             body = "\n".join(lines[1:]).strip()
-            chunks.append(Chunk(id=f"{doc_id}#{k + 1}", doc=p.name, title=title, section=section,
-                                text=f"{title}. {section}.\n{body}"))
+            chunks.append(
+                Chunk(
+                    id=f"{doc_id}#{k + 1}",
+                    doc=p.name,
+                    title=title,
+                    section=section,
+                    text=f"{title}. {section}.\n{body}",
+                )
+            )
     return chunks
 
 
@@ -130,8 +156,9 @@ class DenseEncoder:
             from sklearn.decomposition import TruncatedSVD
             from sklearn.feature_extraction.text import TfidfVectorizer
 
-            self.tfidf = TfidfVectorizer(tokenizer=tokenize, lowercase=False, ngram_range=(1, 2),
-                                         sublinear_tf=True, token_pattern=None)
+            self.tfidf = TfidfVectorizer(
+                tokenizer=tokenize, lowercase=False, ngram_range=(1, 2), sublinear_tf=True, token_pattern=None
+            )
             x = self.tfidf.fit_transform(texts)
             k = max(2, min(64, x.shape[0] - 1, x.shape[1] - 1))
             self.svd = TruncatedSVD(n_components=k, random_state=0).fit(x)
@@ -180,8 +207,9 @@ class HybridRetriever:
         for rank, i in enumerate(rd):
             fused[i] += 1.0 / (self.rrf_k + rank + 1)
         top = np.argsort(-fused, kind="stable")[:k]
-        return [{"chunk": self.chunks[i], "score": float(fused[i]), "bm25": float(b[i]), "dense": float(d[i])}
-                for i in top]
+        return [
+            {"chunk": self.chunks[i], "score": float(fused[i]), "bm25": float(b[i]), "dense": float(d[i])} for i in top
+        ]
 
 
 def index_path() -> Path:

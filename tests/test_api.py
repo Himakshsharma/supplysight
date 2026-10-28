@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 fastapi = pytest.importorskip("fastapi")
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture(scope="module")
@@ -50,17 +50,33 @@ def test_anomaly_endpoints(api):
     r = api.post(f"/api/v1/anomaly/flags/{fid}/review", headers=mgr, json={"verdict": "true_issue", "comment": "ok"})
     assert r.status_code == 200 and r.json()["reviewer"] == "manager"
     buyer = _token(api, "buyer")
-    assert api.post(f"/api/v1/anomaly/flags/{fid}/review", headers=buyer,
-                    json={"verdict": "true_issue"}).status_code == 403
+    assert (
+        api.post(f"/api/v1/anomaly/flags/{fid}/review", headers=buyer, json={"verdict": "true_issue"}).status_code
+        == 403
+    )
     bad = api.post(f"/api/v1/anomaly/flags/{fid}/review", headers=mgr, json={"verdict": "maybe"})
     assert bad.status_code == 422 and bad.json()["error"]["code"] == "validation_error"
     first = flags[0]
-    s = api.post("/api/v1/anomaly/score", headers=buyer, json={
-        "lifnr": first["lifnr"], "matnr": first["matnr"], "werks": first["werks"], "menge": 10, "netpr": 100,
-        "lead_time_days": 0, "created_at": "2026-06-28T23:00:00"})
+    s = api.post(
+        "/api/v1/anomaly/score",
+        headers=buyer,
+        json={
+            "lifnr": first["lifnr"],
+            "matnr": first["matnr"],
+            "werks": first["werks"],
+            "menge": 10,
+            "netpr": 100,
+            "lead_time_days": 0,
+            "created_at": "2026-06-28T23:00:00",
+        },
+    )
     assert s.status_code == 200 and s.json()["risk_level"] in ("Low", "Medium", "High")
-    assert api.post("/api/v1/anomaly/score", headers=buyer, json={
-        "lifnr": "1", "matnr": "999999", "menge": 1, "netpr": 1}).status_code == 404
+    assert (
+        api.post(
+            "/api/v1/anomaly/score", headers=buyer, json={"lifnr": "1", "matnr": "999999", "menge": 1, "netpr": 1}
+        ).status_code
+        == 404
+    )
 
 
 def test_forecast_and_copilot(api):

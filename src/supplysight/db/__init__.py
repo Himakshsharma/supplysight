@@ -20,56 +20,204 @@ from supplysight.utils import get_logger, optional_import
 
 log = get_logger(__name__)
 
-T, F, I = "TEXT", "DOUBLE PRECISION", "INTEGER"  # noqa: E741
+TEXT, FLOAT, INT = "TEXT", "DOUBLE PRECISION", "INTEGER"
 
 # table -> (columns, primary key). Documented in docs/DATA_DICTIONARY.md
 SCHEMA: dict[str, tuple[dict[str, str], list[str]]] = {
-    "lfa1": ({"lifnr": T, "name1": T, "stras": T, "ort01": T, "regio": T, "pstlz": T, "stcd3": T,
-              "bank_ref": T, "created_on": T, "land1": T}, ["lifnr"]),
-    "mara": ({"matnr": T, "mtart": T, "matkl": T, "meins": T, "ersda": T}, ["matnr"]),
-    "makt": ({"matnr": T, "maktx": T, "spras": T}, ["matnr", "spras"]),
-    "marc": ({"matnr": T, "werks": T, "plifz": I, "eisbe": F, "minbe": F, "dispo": T, "dismm": T},
-             ["matnr", "werks"]),
-    "mard": ({"matnr": T, "werks": T, "lgort": T, "labst": F, "open_po_qty": F}, ["matnr", "werks", "lgort"]),
-    "eina": ({"infnr": T, "matnr": T, "lifnr": T, "created_on": T, "is_primary": I}, ["infnr"]),
-    "eine": ({"infnr": T, "ekorg": T, "netpr": F, "peinh": I, "waers": T, "aplfz": I, "valid_from": T},
-             ["infnr", "ekorg", "valid_from"]),  # one condition record per validity start
-    "eban": ({"banfn": T, "bnfpo": T, "matnr": T, "werks": T, "menge": F, "requested_by": T,
-              "created_on": T, "ebeln": T, "ebelp": T}, ["banfn", "bnfpo"]),
-    "ekko": ({"ebeln": T, "bukrs": T, "bsart": T, "lifnr": T, "bedat": T, "created_at": T, "ekorg": T,
-              "ekgrp": T, "created_by": T, "waers": T, "approval_status": T, "status": T}, ["ebeln"]),
-    "ekpo": ({"ebeln": T, "ebelp": T, "matnr": T, "werks": T, "menge": F, "meins": T, "netpr": F,
-              "peinh": I, "netwr": F, "eindt": T, "banfn": T, "matkl": T}, ["ebeln", "ebelp"]),
-    "mkpf": ({"mblnr": T, "mjahr": I, "budat": T, "usnam": T}, ["mblnr", "mjahr"]),
-    "mseg": ({"mblnr": T, "zeile": T, "bwart": T, "matnr": T, "werks": T, "menge": F, "meins": T,
-              "budat": T, "ebeln": T, "aufnr": T, "lifnr": T}, ["mblnr", "zeile"]),
-    "afko": ({"aufnr": T, "werks": T, "plnbez": T, "gamng": F, "gstrp": T, "gltrp": T, "auart": T}, ["aufnr"]),
-    "afpo": ({"aufnr": T, "posnr": T, "matnr": T, "psmng": F, "wemng": F, "werks": T}, ["aufnr", "posnr"]),
-    "stko": ({"stlnr": T, "matnr": T, "bmeng": F, "bmein": T}, ["stlnr"]),
-    "stpo": ({"stlnr": T, "posnr": T, "idnrk": T, "menge": F, "meins": T}, ["stlnr", "posnr"]),
-    "plaf": ({"plnum": T, "matnr": T, "plwrk": T, "gsmng": F, "psttr": T, "paart": T}, ["plnum"]),
-    "anomaly_labels": ({"ebeln": T, "ebelp": T, "anomaly_type": T}, ["ebeln", "ebelp"]),
+    "lfa1": (
+        {
+            "lifnr": TEXT,
+            "name1": TEXT,
+            "stras": TEXT,
+            "ort01": TEXT,
+            "regio": TEXT,
+            "pstlz": TEXT,
+            "stcd3": TEXT,
+            "bank_ref": TEXT,
+            "created_on": TEXT,
+            "land1": TEXT,
+        },
+        ["lifnr"],
+    ),
+    "mara": ({"matnr": TEXT, "mtart": TEXT, "matkl": TEXT, "meins": TEXT, "ersda": TEXT}, ["matnr"]),
+    "makt": ({"matnr": TEXT, "maktx": TEXT, "spras": TEXT}, ["matnr", "spras"]),
+    "marc": (
+        {"matnr": TEXT, "werks": TEXT, "plifz": INT, "eisbe": FLOAT, "minbe": FLOAT, "dispo": TEXT, "dismm": TEXT},
+        ["matnr", "werks"],
+    ),
+    "mard": (
+        {"matnr": TEXT, "werks": TEXT, "lgort": TEXT, "labst": FLOAT, "open_po_qty": FLOAT},
+        ["matnr", "werks", "lgort"],
+    ),
+    "eina": ({"infnr": TEXT, "matnr": TEXT, "lifnr": TEXT, "created_on": TEXT, "is_primary": INT}, ["infnr"]),
+    "eine": (
+        {"infnr": TEXT, "ekorg": TEXT, "netpr": FLOAT, "peinh": INT, "waers": TEXT, "aplfz": INT, "valid_from": TEXT},
+        ["infnr", "ekorg", "valid_from"],
+    ),  # one condition record per validity start
+    "eban": (
+        {
+            "banfn": TEXT,
+            "bnfpo": TEXT,
+            "matnr": TEXT,
+            "werks": TEXT,
+            "menge": FLOAT,
+            "requested_by": TEXT,
+            "created_on": TEXT,
+            "ebeln": TEXT,
+            "ebelp": TEXT,
+        },
+        ["banfn", "bnfpo"],
+    ),
+    "ekko": (
+        {
+            "ebeln": TEXT,
+            "bukrs": TEXT,
+            "bsart": TEXT,
+            "lifnr": TEXT,
+            "bedat": TEXT,
+            "created_at": TEXT,
+            "ekorg": TEXT,
+            "ekgrp": TEXT,
+            "created_by": TEXT,
+            "waers": TEXT,
+            "approval_status": TEXT,
+            "status": TEXT,
+        },
+        ["ebeln"],
+    ),
+    "ekpo": (
+        {
+            "ebeln": TEXT,
+            "ebelp": TEXT,
+            "matnr": TEXT,
+            "werks": TEXT,
+            "menge": FLOAT,
+            "meins": TEXT,
+            "netpr": FLOAT,
+            "peinh": INT,
+            "netwr": FLOAT,
+            "eindt": TEXT,
+            "banfn": TEXT,
+            "matkl": TEXT,
+        },
+        ["ebeln", "ebelp"],
+    ),
+    "mkpf": ({"mblnr": TEXT, "mjahr": INT, "budat": TEXT, "usnam": TEXT}, ["mblnr", "mjahr"]),
+    "mseg": (
+        {
+            "mblnr": TEXT,
+            "zeile": TEXT,
+            "bwart": TEXT,
+            "matnr": TEXT,
+            "werks": TEXT,
+            "menge": FLOAT,
+            "meins": TEXT,
+            "budat": TEXT,
+            "ebeln": TEXT,
+            "aufnr": TEXT,
+            "lifnr": TEXT,
+        },
+        ["mblnr", "zeile"],
+    ),
+    "afko": (
+        {"aufnr": TEXT, "werks": TEXT, "plnbez": TEXT, "gamng": FLOAT, "gstrp": TEXT, "gltrp": TEXT, "auart": TEXT},
+        ["aufnr"],
+    ),
+    "afpo": (
+        {"aufnr": TEXT, "posnr": TEXT, "matnr": TEXT, "psmng": FLOAT, "wemng": FLOAT, "werks": TEXT},
+        ["aufnr", "posnr"],
+    ),
+    "stko": ({"stlnr": TEXT, "matnr": TEXT, "bmeng": FLOAT, "bmein": TEXT}, ["stlnr"]),
+    "stpo": ({"stlnr": TEXT, "posnr": TEXT, "idnrk": TEXT, "menge": FLOAT, "meins": TEXT}, ["stlnr", "posnr"]),
+    "plaf": ({"plnum": TEXT, "matnr": TEXT, "plwrk": TEXT, "gsmng": FLOAT, "psttr": TEXT, "paart": TEXT}, ["plnum"]),
+    "anomaly_labels": ({"ebeln": TEXT, "ebelp": TEXT, "anomaly_type": TEXT}, ["ebeln", "ebelp"]),
     # ---- application tables written by the ML pipeline / API
-    "po_scores": ({"ebeln": T, "ebelp": T, "lifnr": T, "matnr": T, "werks": T, "bedat": T, "netwr": F,
-                   "score": F, "risk_level": T, "reasons": T, "rule_score": F, "iforest_score": F,
-                   "ae_score": F, "model_version": T}, ["ebeln", "ebelp"]),
-    "vendor_duplicates": ({"lifnr_a": T, "lifnr_b": T, "name_a": T, "name_b": T, "similarity": F,
-                           "match_on": T}, ["lifnr_a", "lifnr_b"]),
-    "reorder_recommendations": ({"matnr": T, "werks": T, "maktx": T, "matkl": T, "avg_weekly_forecast": F,
-                                 "sigma": F, "lead_time_days": I, "safety_stock": F, "recommended_rop": F,
-                                 "current_minbe": F, "current_stock": F, "open_po_qty": F,
-                                 "weeks_of_cover": F, "stockout_risk": T, "rop_gap_pct": F}, ["matnr", "werks"]),
-    "demand_forecast": ({"matnr": T, "werks": T, "week": T, "yhat": F, "p10": F, "p90": F,
-                         "model_version": T}, ["matnr", "werks", "week"]),
-    "review_feedback": ({"id": T, "ebeln": T, "ebelp": T, "verdict": T, "comment": T, "reviewer": T,
-                         "reviewed_at": T}, ["id"]),
+    "po_scores": (
+        {
+            "ebeln": TEXT,
+            "ebelp": TEXT,
+            "lifnr": TEXT,
+            "matnr": TEXT,
+            "werks": TEXT,
+            "bedat": TEXT,
+            "netwr": FLOAT,
+            "score": FLOAT,
+            "risk_level": TEXT,
+            "reasons": TEXT,
+            "rule_score": FLOAT,
+            "iforest_score": FLOAT,
+            "ae_score": FLOAT,
+            "model_version": TEXT,
+        },
+        ["ebeln", "ebelp"],
+    ),
+    "vendor_duplicates": (
+        {"lifnr_a": TEXT, "lifnr_b": TEXT, "name_a": TEXT, "name_b": TEXT, "similarity": FLOAT, "match_on": TEXT},
+        ["lifnr_a", "lifnr_b"],
+    ),
+    "reorder_recommendations": (
+        {
+            "matnr": TEXT,
+            "werks": TEXT,
+            "maktx": TEXT,
+            "matkl": TEXT,
+            "avg_weekly_forecast": FLOAT,
+            "sigma": FLOAT,
+            "lead_time_days": INT,
+            "safety_stock": FLOAT,
+            "recommended_rop": FLOAT,
+            "current_minbe": FLOAT,
+            "current_stock": FLOAT,
+            "open_po_qty": FLOAT,
+            "weeks_of_cover": FLOAT,
+            "stockout_risk": TEXT,
+            "rop_gap_pct": FLOAT,
+        },
+        ["matnr", "werks"],
+    ),
+    "demand_forecast": (
+        {"matnr": TEXT, "werks": TEXT, "week": TEXT, "yhat": FLOAT, "p10": FLOAT, "p90": FLOAT, "model_version": TEXT},
+        ["matnr", "werks", "week"],
+    ),
+    "review_feedback": (
+        {
+            "id": TEXT,
+            "ebeln": TEXT,
+            "ebelp": TEXT,
+            "verdict": TEXT,
+            "comment": TEXT,
+            "reviewer": TEXT,
+            "reviewed_at": TEXT,
+        },
+        ["id"],
+    ),
 }
 APP_TABLES = ("po_scores", "vendor_duplicates", "reorder_recommendations", "demand_forecast", "review_feedback")
 SOURCE_TABLES = [t for t in SCHEMA if t not in APP_TABLES]
 # tables the copilot SQL tool may read (labels and feedback are deliberately excluded)
-COPILOT_TABLES = ["lfa1", "mara", "makt", "marc", "mard", "eina", "eine", "eban", "ekko", "ekpo",
-                  "mseg", "mkpf", "afko", "afpo", "stko", "stpo", "plaf", "po_scores", "reorder_recommendations",
-                  "vendor_duplicates", "demand_forecast"]
+COPILOT_TABLES = [
+    "lfa1",
+    "mara",
+    "makt",
+    "marc",
+    "mard",
+    "eina",
+    "eine",
+    "eban",
+    "ekko",
+    "ekpo",
+    "mseg",
+    "mkpf",
+    "afko",
+    "afpo",
+    "stko",
+    "stpo",
+    "plaf",
+    "po_scores",
+    "reorder_recommendations",
+    "vendor_duplicates",
+    "demand_forecast",
+]
 
 
 _ENGINES: dict[str, Any] = {}
@@ -188,7 +336,7 @@ def read_table(name: str) -> pd.DataFrame:
         raise KeyError(name)
     df = read_sql(f"SELECT * FROM {name}")
     for c, t in SCHEMA[name][0].items():
-        if t == T and c in df:
+        if t == TEXT and c in df:
             df[c] = df[c].where(df[c].isna(), df[c].astype(str))
     return df
 

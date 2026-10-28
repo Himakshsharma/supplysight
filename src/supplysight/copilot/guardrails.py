@@ -16,14 +16,23 @@ INJECTION_PATTERNS = [
     r"disregard (all |the )?(previous|prior|above|system)",
     r"forget (everything|all|your) (instructions|rules|above)?",
     r"(reveal|show|print|repeat|leak) (me )?(your |the )?(system|hidden|initial) (prompt|instructions|message)",
-    r"you are now\b", r"act as (an? )?(unrestricted|jailbroken|dan|developer mode)", r"\bdan mode\b",
-    r"developer mode", r"pretend (that )?you (have no|are not bound)", r"bypass (the )?(guardrails|filters|rules|safety)",
-    r"override (your |the )?(rules|instructions|guardrails)", r"<\s*/?\s*(system|assistant)\s*>",
-    r"\bsystem prompt\b", r"jailbreak",
+    r"you are now\b",
+    r"act as (an? )?(unrestricted|jailbroken|dan|developer mode)",
+    r"\bdan mode\b",
+    r"developer mode",
+    r"pretend (that )?you (have no|are not bound)",
+    r"bypass (the )?(guardrails|filters|rules|safety)",
+    r"override (your |the )?(rules|instructions|guardrails)",
+    r"<\s*/?\s*(system|assistant)\s*>",
+    r"\bsystem prompt\b",
+    r"jailbreak",
 ]
-DESTRUCTIVE_WORDS = r"\b(insert|update|delete|drop|alter|create|truncate|attach|detach|pragma|grant|revoke|replace|" \
-                    r"vacuum|reindex|copy|merge|call|exec|execute|commit|rollback|savepoint|load_extension)\b"
-DOMAIN_TERMS = set("""vendor vendors supplier suppliers supply supplies supplied po pos purchase order orders requisition
+DESTRUCTIVE_WORDS = (
+    r"\b(insert|update|delete|drop|alter|create|truncate|attach|detach|pragma|grant|revoke|replace|"
+    r"vacuum|reindex|copy|merge|call|exec|execute|commit|rollback|savepoint|load_extension)\b"
+)
+DOMAIN_TERMS = set(
+    """vendor vendors supplier suppliers supply supplies supplied po pos purchase order orders requisition
 pr spend spent price prices cost material materials stock stockout stock-out inventory reorder lead time sop
 procedure process policy approval approve approves approver urgent emergency gst gstin pan bank invoice three-way
 match receipt grn goods inspection quarantine qc quality coa plant plants baddi vapi forecast demand consumption
@@ -31,7 +40,8 @@ buyer buyers mrp minbe safety risk risky anomaly anomalies flag flagged flags fr
 contract info record packaging raw glycerin fragrance bottle cap carton label butter wax oil oils pigment emulsifier
 production bom recipe sap ekpo ekko lfa1 mara marc eban mseg cream lotion shampoo lipstick sunscreen serum how many
 top total average list show which who what quarter month year week weeks cosmetics chemicals open closed delivery
-delivered tolerance rating evaluation amendment cancel cancellation index variance review reviewer""".split())
+delivered tolerance rating evaluation amendment cancel cancellation index variance review reviewer""".split()
+)
 SENSITIVE_COLUMNS = {"stcd3", "bank_ref", "gstin"}
 GSTIN_RE = re.compile(r"\b(\d{2})([A-Z]{5}\d{4}[A-Z])([1-9A-Z])Z([0-9A-Z])\b")
 BANK_RE = re.compile(r"\b([A-Z]{4})0\d{6}/(\d{10,16})\b")
@@ -43,7 +53,9 @@ def detect_injection(text: str) -> str | None:
     for p in INJECTION_PATTERNS:
         if re.search(p, low):
             return "Possible prompt-injection attempt detected"
-    if re.search(DESTRUCTIVE_WORDS + r"\s+(table|from|into|database|set)\b", low) or re.search(r";\s*(drop|delete|update)\b", low):
+    if re.search(DESTRUCTIVE_WORDS + r"\s+(table|from|into|database|set)\b", low) or re.search(
+        r";\s*(drop|delete|update)\b", low
+    ):
         return "Requests to modify data are not allowed (read-only assistant)"
     return None
 
@@ -53,8 +65,10 @@ def is_off_topic(text: str) -> bool:
     toks = set(re.findall(r"[a-z0-9\-]+", text.lower()))
     if re.search(r"\b\d{6}\b", text):  # material / vendor numbers
         return False
-    return len(toks & DOMAIN_TERMS) == 0 or (len(toks & DOMAIN_TERMS) <= 1 and toks & {
-        "weather", "cricket", "movie", "recipe", "poem", "joke", "song", "football", "politics", "election"})
+    return len(toks & DOMAIN_TERMS) == 0 or (
+        len(toks & DOMAIN_TERMS) <= 1
+        and toks & {"weather", "cricket", "movie", "recipe", "poem", "joke", "song", "football", "politics", "election"}
+    )
 
 
 def _strip_comments(sql: str) -> str:

@@ -10,15 +10,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import warnings
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", message=".*Stochastic Optimizer.*")
 
-from supplysight.pipeline import train_all  # noqa: E402
+from supplysight.pipeline import train_all
 
 
 def main() -> None:
@@ -26,8 +23,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--module", choices=["anomaly", "forecast", "copilot", "all"], default="all")
     ap.add_argument("--quick", action="store_true")
-    ap.add_argument("--promote", choices=["if_better", "always", "never"], default="always",
-                    help="initial training promotes by default; retrain.py uses champion/challenger")
+    ap.add_argument(
+        "--promote",
+        choices=["if_better", "always", "never"],
+        default="always",
+        help="initial training promotes by default; retrain.py uses champion/challenger",
+    )
     args = ap.parse_args()
     mods = ("anomaly", "forecast", "copilot") if args.module == "all" else (args.module,)
     out = train_all(mods, quick=args.quick, promote=args.promote)

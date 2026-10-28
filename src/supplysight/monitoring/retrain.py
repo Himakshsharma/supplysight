@@ -56,8 +56,7 @@ def _live_forecast_wmape(cur: dict[str, pd.DataFrame]) -> float:
     return float(np.abs(m.qty - m.yhat).sum() / max(m.qty.abs().sum(), 1e-9)) if len(m) else float("nan")
 
 
-def drift_check(ref: dict[str, pd.DataFrame], cur: dict[str, pd.DataFrame],
-                thresholds: dict | None = None) -> dict:
+def drift_check(ref: dict[str, pd.DataFrame], cur: dict[str, pd.DataFrame], thresholds: dict | None = None) -> dict:
     """Compute drift metrics, write reports, and decide whether to retrain."""
     th = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
     rep = get_settings().reports_dir
@@ -76,8 +75,9 @@ def drift_check(ref: dict[str, pd.DataFrame], cur: dict[str, pd.DataFrame],
     model, meta = reg.load(ANOMALY_MODEL)
     s_ref, s_cur = model.score(f_ref), model.score(f_cur)
     score_psi = psi(s_ref.score.to_numpy(), s_cur.score.to_numpy())
-    pred_tab = drift_table(pd.DataFrame({"anomaly_score": s_ref.score}), pd.DataFrame({"anomaly_score": s_cur.score}),
-                           ["anomaly_score"])
+    pred_tab = drift_table(
+        pd.DataFrame({"anomaly_score": s_ref.score}), pd.DataFrame({"anomaly_score": s_cur.score}), ["anomaly_score"]
+    )
 
     # demand drift: weekly consumption scaled by each series' reference mean
     w_ref, w_cur = weekly_consumption(ref["mseg"]), weekly_consumption(cur["mseg"])
@@ -85,9 +85,11 @@ def drift_check(ref: dict[str, pd.DataFrame], cur: dict[str, pd.DataFrame],
     last13 = w_ref[w_ref.week > w_ref.week.max() - pd.Timedelta(weeks=26)]
     a = last13.join(scale, on=["matnr", "werks"])
     b = w_cur.join(scale, on=["matnr", "werks"]).dropna(subset=["scale"])
-    dem_tab = drift_table(pd.DataFrame({"scaled_weekly_consumption": a.qty / a.scale.clip(lower=1e-9)}),
-                          pd.DataFrame({"scaled_weekly_consumption": b.qty / b.scale.clip(lower=1e-9)}),
-                          ["scaled_weekly_consumption"])
+    dem_tab = drift_table(
+        pd.DataFrame({"scaled_weekly_consumption": a.qty / a.scale.clip(lower=1e-9)}),
+        pd.DataFrame({"scaled_weekly_consumption": b.qty / b.scale.clip(lower=1e-9)}),
+        ["scaled_weekly_consumption"],
+    )
     # unit price drift per material (ratio to the material's reference median)
     pm = f_ref.groupby("matnr").netpr.median().rename("ref_med")
     pr = pd.DataFrame({"price_index": (f_cur.netpr / f_cur.matnr.map(pm)).dropna()})
@@ -113,21 +115,41 @@ def drift_check(ref: dict[str, pd.DataFrame], cur: dict[str, pd.DataFrame],
     summary = {
         "reference_period": f"{f_ref.created_at.min():%Y-%m-%d} – {f_ref.created_at.max():%Y-%m-%d}",
         "current_period": f"{f_cur.created_at.min():%Y-%m-%d} – {f_cur.created_at.max():%Y-%m-%d}",
-        "n_ref_pos": len(f_ref), "n_cur_pos": len(f_cur),
-        "share_drifted_features": share, "drifted_features": ", ".join(po_tab[po_tab.drifted].feature),
-        "anomaly_score_psi": score_psi, "flag_rate_ref": float((s_ref.risk_level != "Low").mean()),
+        "n_ref_pos": len(f_ref),
+        "n_cur_pos": len(f_cur),
+        "share_drifted_features": share,
+        "drifted_features": ", ".join(po_tab[po_tab.drifted].feature),
+        "anomaly_score_psi": score_psi,
+        "flag_rate_ref": float((s_ref.risk_level != "Low").mean()),
         "flag_rate_cur": float((s_cur.risk_level != "Low").mean()),
-        "demand_psi": float(dem_tab.psi.iloc[0]), "price_index_cur": float(price_tab.cur_mean.iloc[0]),
-        "forecast_backtest_wmape": backtest_wmape, "forecast_live_wmape": live, "forecast_degradation": degradation,
-        "anomaly_model_version": meta["version"], "forecast_model_version": fmeta.get("version"),
-        "retrain_recommended": bool(reasons), "reasons": reasons,
+        "demand_psi": float(dem_tab.psi.iloc[0]),
+        "price_index_cur": float(price_tab.cur_mean.iloc[0]),
+        "forecast_backtest_wmape": backtest_wmape,
+        "forecast_live_wmape": live,
+        "forecast_degradation": degradation,
+        "anomaly_model_version": meta["version"],
+        "forecast_model_version": fmeta.get("version"),
+        "retrain_recommended": bool(reasons),
+        "reasons": reasons,
     }
-    write_html_report({"PO features (anomaly model inputs)": (po_tab, f_ref, f_cur),
-                       "Prediction drift (anomaly score)": (pred_tab, pd.DataFrame({"anomaly_score": s_ref.score}),
-                                                            pd.DataFrame({"anomaly_score": s_cur.score})),
-                       "Demand (scaled weekly consumption)": (dem_tab, pd.DataFrame({"scaled_weekly_consumption": a.qty / a.scale.clip(lower=1e-9)}),
-                                                              pd.DataFrame({"scaled_weekly_consumption": b.qty / b.scale.clip(lower=1e-9)})),
-                       "Unit price index": (price_tab, pr_ref, pr)}, summary, rep / "drift_report.html")
+    write_html_report(
+        {
+            "PO features (anomaly model inputs)": (po_tab, f_ref, f_cur),
+            "Prediction drift (anomaly score)": (
+                pred_tab,
+                pd.DataFrame({"anomaly_score": s_ref.score}),
+                pd.DataFrame({"anomaly_score": s_cur.score}),
+            ),
+            "Demand (scaled weekly consumption)": (
+                dem_tab,
+                pd.DataFrame({"scaled_weekly_consumption": a.qty / a.scale.clip(lower=1e-9)}),
+                pd.DataFrame({"scaled_weekly_consumption": b.qty / b.scale.clip(lower=1e-9)}),
+            ),
+            "Unit price index": (price_tab, pr_ref, pr),
+        },
+        summary,
+        rep / "drift_report.html",
+    )
     summary["evidently_report"] = evidently_report(f_ref[feats], f_cur[feats], rep / "drift_report_evidently.html")
     po_tab.to_csv(rep / "drift_features.csv", index=False)
     save_summary(summary, rep / "drift_summary.json")
@@ -190,12 +212,20 @@ def run_retrain(force: bool = False, thresholds: dict | None = None) -> dict:
         publish_forecast(champion_fc, panel, merged, champ_fc_meta["version"])
 
     decision = {
-        "anomaly": {"champion_version": champ_meta["version"], "challenger_version": res_a["version"],
-                    "champion_pr_auc_new_period": champ_auc, "challenger_pr_auc_new_period": chall_auc,
-                    "promoted": promote_a},
-        "forecast": {"champion_version": champ_fc_meta["version"], "challenger_version": res_f["version"],
-                     "champion_live_wmape": live_wmape, "challenger_backtest_wmape": chall_wmape,
-                     "promoted": promote_f},
+        "anomaly": {
+            "champion_version": champ_meta["version"],
+            "challenger_version": res_a["version"],
+            "champion_pr_auc_new_period": champ_auc,
+            "challenger_pr_auc_new_period": chall_auc,
+            "promoted": promote_a,
+        },
+        "forecast": {
+            "champion_version": champ_fc_meta["version"],
+            "challenger_version": res_f["version"],
+            "champion_live_wmape": live_wmape,
+            "challenger_backtest_wmape": chall_wmape,
+            "promoted": promote_f,
+        },
         "feedback_labels_used": 0 if feedback is None else len(feedback),
     }
     save_summary(decision, get_settings().reports_dir / "retrain_decision.json")

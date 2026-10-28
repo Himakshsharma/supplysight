@@ -14,8 +14,9 @@ _bearer = HTTPBearer(auto_error=False)
 def current_user(creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> dict:
     """Decode the bearer token or raise 401."""
     if creds is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token",
-                            headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Missing bearer token", headers={"WWW-Authenticate": "Bearer"}
+        )
     try:
         return decode_token(creds.credentials)
     except jwt.ExpiredSignatureError as exc:

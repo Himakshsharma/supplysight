@@ -21,7 +21,7 @@ from typing import Any
 
 import joblib
 
-from supplysight.config import get_settings
+from supplysight.config import PROJECT_ROOT, get_settings
 from supplysight.utils import get_logger, optional_import
 
 log = get_logger(__name__)
@@ -52,8 +52,15 @@ class Registry:
         tmp.replace(self.index_path)
 
     # ------------------------------------------------------------- public API
-    def register(self, name: str, model: Any, metrics: dict | None = None, params: dict | None = None,
-                 run_id: str | None = None, stage: str = "None") -> int:
+    def register(
+        self,
+        name: str,
+        model: Any,
+        metrics: dict | None = None,
+        params: dict | None = None,
+        run_id: str | None = None,
+        stage: str = "None",
+    ) -> int:
         """Persist ``model`` as a new version of ``name`` and return the version number."""
         idx = self._index()
         entry = idx.setdefault(name, {"versions": {}})
@@ -63,8 +70,14 @@ class Registry:
         if hasattr(model, "version"):
             model.version = str(version)
         joblib.dump(model, vdir / "model.joblib")
-        entry["versions"][str(version)] = {"version": version, "stage": "None", "created_at": _now(),
-                                           "metrics": metrics or {}, "params": params or {}, "run_id": run_id}
+        entry["versions"][str(version)] = {
+            "version": version,
+            "stage": "None",
+            "created_at": _now(),
+            "metrics": metrics or {},
+            "params": params or {},
+            "run_id": run_id,
+        }
         self._save(idx)
         if stage != "None":
             self.transition(name, version, stage)
@@ -95,8 +108,7 @@ class Registry:
 
     def load(self, name: str, stage: str = "Production", version: int | None = None) -> tuple[Any, dict]:
         """Load a model by name + stage (or explicit version)."""
-        meta = (self._index()[name]["versions"][str(version)] if version is not None
-                else self.get_version(name, stage))
+        meta = self._index()[name]["versions"][str(version)] if version is not None else self.get_version(name, stage)
         if meta is None:
             raise LookupError(f"no {stage} version of {name}")
         return joblib.load(self.root / name / f"v{meta['version']}" / "model.joblib"), meta
@@ -106,8 +118,13 @@ class Registry:
         out = []
         for name, e in self._index().items():
             for v in e["versions"].values():
-                out.append({"name": name, **{k: v[k] for k in ("version", "stage", "created_at")},
-                            "metrics": v.get("metrics", {})})
+                out.append(
+                    {
+                        "name": name,
+                        **{k: v[k] for k in ("version", "stage", "created_at")},
+                        "metrics": v.get("metrics", {}),
+                    }
+                )
         return sorted(out, key=lambda r: (r["name"], r["version"]))
 
     def clear(self) -> None:
@@ -121,15 +138,31 @@ def track_run(experiment: str, run_name: str) -> Iterator[dict]:
     """Track one training run. Yields a dict; put ``params``, ``metrics``, ``artifacts``
     (list of file paths) and optionally ``model`` + ``model_name`` into it."""
     s = get_settings()
-    rec: dict = {"run_id": uuid.uuid4().hex[:12], "experiment": experiment, "run_name": run_name,
-                 "started_at": _now(), "params": {}, "metrics": {}, "artifacts": []}
+    rec: dict = {
+        "run_id": uuid.uuid4().hex[:12],
+        "experiment": experiment,
+        "run_name": run_name,
+        "started_at": _now(),
+        "params": {},
+        "metrics": {},
+        "artifacts": [],
+    }
     yield rec
     rec["ended_at"] = _now()
+    rec["artifacts"] = [_relative(a) for a in rec["artifacts"]]
     runs = s.artifacts_dir / "runs"
     runs.mkdir(parents=True, exist_ok=True)
     with open(runs / "runs.jsonl", "a", encoding="utf-8") as fh:
         fh.write(json.dumps({k: v for k, v in rec.items() if k != "model"}, default=str) + "\n")
     _mirror_to_mlflow(rec)
+
+
+def _relative(path: str) -> str:
+    """Store artifact paths relative to the project root so run logs are portable."""
+    try:
+        return Path(path).resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def _mirror_to_mlflow(rec: dict) -> None:
@@ -145,11 +178,11 @@ def _mirror_to_mlflow(rec: dict) -> None:
             mlflow.log_params({k: str(v)[:250] for k, v in rec["params"].items()})
             mlflow.log_metrics({k: float(v) for k, v in rec["metrics"].items() if v == v})
             for a in rec["artifacts"]:
-                if Path(a).exists():
-                    mlflow.log_artifact(str(a))
+                full = PROJECT_ROOT / a
+                if full.exists():
+                    mlflow.log_artifact(str(full))
             if rec.get("model") is not None and rec.get("model_name"):
-                mlflow.sklearn.log_model(rec["model"], artifact_path="model",
-                                         registered_model_name=rec["model_name"])
+                mlflow.sklearn.log_model(rec["model"], artifact_path="model", registered_model_name=rec["model_name"])
     except Exception as exc:  # pragma: no cover
         log.warning("MLflow mirror skipped: %s", exc)
 

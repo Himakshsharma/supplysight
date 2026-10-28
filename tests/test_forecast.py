@@ -14,7 +14,7 @@ from supplysight.forecast.reorder import recommend_reorder_points
 def test_panel_shapes(small_tables):
     p = build_panel(small_tables)
     assert p.Y.shape == p.P.shape
-    assert np.isnan(p.Y[:, p.n_hist:]).all()  # future weeks have no actuals
+    assert np.isnan(p.Y[:, p.n_hist :]).all()  # future weeks have no actuals
     assert np.isfinite(p.Y[:, : p.n_hist]).all()
     assert (p.P[:, : p.n_hist] >= 0).all()
 

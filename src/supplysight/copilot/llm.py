@@ -22,9 +22,15 @@ def generate(prompt: str, temperature: float = 0.1, timeout: float = 20.0) -> st
     if not s.gemini_api_key:
         return None
     try:  # pragma: no cover - network
-        r = requests.post(_URL.format(model=s.gemini_model), params={"key": s.gemini_api_key}, timeout=timeout,
-                          json={"contents": [{"parts": [{"text": prompt}]}],
-                                "generationConfig": {"temperature": temperature, "maxOutputTokens": 800}})
+        r = requests.post(
+            _URL.format(model=s.gemini_model),
+            params={"key": s.gemini_api_key},
+            timeout=timeout,
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": temperature, "maxOutputTokens": 800},
+            },
+        )
         r.raise_for_status()
         return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception as exc:  # pragma: no cover
