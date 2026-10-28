@@ -60,6 +60,7 @@ class GenConfig:
     approval_threshold: float = 500_000.0
     material_scale: float = 1.0  # <1.0 builds a smaller catalogue (CI / tests)
     id_offset: int = 0  # shifts document numbers (used for drift quarters)
+    vendor_offset: int = 0  # shifts ids of vendors created by this run (drift quarters)
     drift: dict = field(default_factory=dict)  # see scripts/simulate_drift.py
 
 
@@ -531,7 +532,7 @@ def inject_anomalies(cfg: GenConfig, md: dict, po: pd.DataFrame, eban: pd.DataFr
         po.at[i, "gr_date"] = po.at[i, "eindt"] + pd.Timedelta(days=int(rng.integers(0, 3)))
         labels.append({"ebeln": po.at[i, "ebeln"], "ebelp": "00010", "anomaly_type": "short_lead_time"})
 
-    next_lifnr = int(vendors.lifnr.astype(int).max()) + 1
+    next_lifnr = int(vendors.lifnr.astype(int).max()) + 1 + (cfg.vendor_offset if cfg.drift.get("new_vendor_share", 0) == 0 else 0)
     # 4. duplicate vendors: re-created master records with the same bank/PAN, POs moved to them
     n_dup_vendors = max(2, counts["duplicate_vendor"] // 4)
     originals = vendors[vendors.created_on < cfg.start].sample(n=n_dup_vendors, random_state=int(rng.integers(1 << 30)))
@@ -606,7 +607,7 @@ def inject_anomalies(cfg: GenConfig, md: dict, po: pd.DataFrame, eban: pd.DataFr
         po.at[i, "eindt"] = ts.normalize() + pd.Timedelta(days=int(rng.integers(5, 15)))
         po.at[i, "gr_date"] = po.at[i, "eindt"]
         if with_info:  # the fraudster also created a purchasing info record
-            infnr = str(int(md["eina"].infnr.astype(int).max()) + 1)
+            infnr = str(int(md["eina"].infnr.astype(int).max()) + 1 + cfg.id_offset)
             md["eina"] = pd.concat([md["eina"], pd.DataFrame([{
                 "infnr": infnr, "matnr": po.at[i, "matnr"], "lifnr": lifnr, "created_on": created.date().isoformat(),
                 "is_primary": 0}])], ignore_index=True)
@@ -693,8 +694,9 @@ def _assemble_documents(cfg: GenConfig, po: pd.DataFrame, issues: pd.DataFrame,
 def _build_marc(cfg: GenConfig, md: dict, issues: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
     """Plant-level MRP data. MINBE is set from the first 6 months only, so it is
     deliberately stale for growing / seasonal materials (that's what the forecaster fixes)."""
-    info = md["eina"].merge(md["eine"], on="infnr")
-    prim = info[info.is_primary == 1].set_index("matnr")
+    eine = md["eine"].sort_values("valid_from").drop_duplicates("infnr", keep="last")
+    info = md["eina"].merge(eine, on="infnr")
+    prim = info[info.is_primary == 1].drop_duplicates("matnr").set_index("matnr")
     first = issues[pd.to_datetime(issues.budat) < pd.Timestamp(cfg.start) + pd.Timedelta(days=182)]
     wk = first.groupby(["matnr", "werks"]).menge.sum() / 26.0
     rows = []
@@ -724,21 +726,45 @@ def generate(cfg: GenConfig | None = None) -> dict[str, pd.DataFrame]:
     po, eban = proc["po"], proc["eban"]
 
     vendors = md["vendors"]
-    if (po.lifnr == "DRIFT").any():  # drift scenario: new vendor mix
+    if (po.lifnr == "DRIFT").any():  # drift scenario: properly onboarded new vendors take share
         n_new = 6
-        start_id = int(vendors.lifnr.astype(int).max()) + 1
+        start_id = int(vendors.lifnr.astype(int).max()) + 1 + cfg.vendor_offset
+        names = [f"{a} {b} {c}" for a, b, c in zip(
+            ["Vasudha", "Kalpataru", "Sanjivani", "Arihant", "Neelkanth", "Shreeji"],
+            ["Bio Actives", "Polypack", "Oleo Specialities", "Aroma Chem", "Containers", "Fine Ingredients"],
+            ["Pvt Ltd", "LLP", "Pvt Ltd", "Industries Ltd", "Pvt Ltd", "LLP"], strict=True)]
         newv = []
         for k in range(n_new):
             city, state, code = C.CITIES[int(rng.integers(len(C.CITIES)))]
-            newv.append({"lifnr": str(start_id + k), "name1": f"New Age Supplier {k + 1} Pvt Ltd",
-                         "stras": f"Plot {k + 10}, Sector 5", "ort01": city, "regio": state,
-                         "pstlz": "110001", "stcd3": make_gstin(rng, code), "bank_ref": _fake_bank_ref(rng),
-                         "created_on": (pd.Timestamp(cfg.start) - pd.Timedelta(days=10)).date().isoformat(),
-                         "vendor_type": "RM", "groups": [], "price_level": 1.0, "lt_mean": 9.0,
-                         "reliability_sd": 2.0})
+            newv.append({"lifnr": str(start_id + k), "name1": names[k],
+                         "stras": f"Plot {rng.integers(1, 400)}, {rng.choice(C.STREETS)}", "ort01": city, "regio": state,
+                         "pstlz": f"{rng.integers(110001, 799999)}", "stcd3": make_gstin(rng, code),
+                         "bank_ref": _fake_bank_ref(rng),
+                         "created_on": (pd.Timestamp(cfg.start) - pd.Timedelta(days=int(rng.integers(20, 60)))).date().isoformat(),
+                         "vendor_type": "RM", "groups": [], "price_level": 1.0, "lt_mean": 9.0, "reliability_sd": 2.0})
         md["vendors"] = vendors = pd.concat([vendors, pd.DataFrame(newv)], ignore_index=True)
         mask = po.lifnr == "DRIFT"
         po.loc[mask, "lifnr"] = rng.choice([v["lifnr"] for v in newv], mask.sum())
+        # onboarding created info records (contract price + lead time) for every new pair
+        pairs = po.loc[mask, ["matnr", "lifnr"]].drop_duplicates()
+        base_inf = int(md["eina"].infnr.astype(int).max()) + 1 + cfg.id_offset + 5000
+        eina_new, eine_new = [], []
+        for j, r in enumerate(pairs.itertuples()):
+            px = float(po.loc[mask & (po.matnr == r.matnr) & (po.lifnr == r.lifnr), "netpr"].median())
+            eina_new.append({"infnr": str(base_inf + j), "matnr": r.matnr, "lifnr": r.lifnr,
+                             "created_on": newv[0]["created_on"], "is_primary": 0})
+            eine_new.append({"infnr": str(base_inf + j), "ekorg": C.PURCH_ORG, "netpr": round(px, 2), "peinh": 1,
+                             "waers": "INR", "aplfz": int(rng.integers(7, 15)), "valid_from": newv[0]["created_on"]})
+        md["eina"] = pd.concat([md["eina"], pd.DataFrame(eina_new)], ignore_index=True)
+        md["eine"] = pd.concat([md["eine"], pd.DataFrame(eine_new)], ignore_index=True)
+
+    if cfg.drift.get("price_shock", 1.0) != 1.0:  # buyers renegotiated contracts after the shock
+        yrs = (pd.Timestamp(cfg.start) - pd.Timestamp(cfg.trend_anchor)).days / 365.25
+        upd = md["eine"][md["eine"].valid_from < cfg.start].copy()
+        upd = upd.sort_values("valid_from").drop_duplicates("infnr", keep="last")
+        upd["netpr"] = (upd.netpr * (1.055 ** yrs) * cfg.drift["price_shock"]).round(2)
+        upd["valid_from"] = (pd.Timestamp(cfg.start) - pd.Timedelta(days=7)).date().isoformat()
+        md["eine"] = pd.concat([md["eine"], upd], ignore_index=True)
 
     if cfg.anomaly_rate > 0:
         po, eban, vendors, labels = inject_anomalies(cfg, md, po, eban, rng)

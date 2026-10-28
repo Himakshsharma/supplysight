@@ -31,7 +31,8 @@ mara(matnr material, mtart ROH|VERP|FERT, matkl material group e.g. RM-FRAG, mei
 makt(matnr, maktx material description)
 marc(matnr, werks plant 1000|2000, plifz planned delivery days, eisbe safety stock, minbe reorder point)
 mard(matnr, werks, labst unrestricted stock, open_po_qty)
-eina(infnr info record, matnr, lifnr, is_primary 1/0)  eine(infnr, netpr contract price INR, aplfz lead time days)
+eina(infnr info record, matnr, lifnr, is_primary 1/0)
+eine(infnr, netpr contract price INR, aplfz lead time days, valid_from) - several conditions per infnr; latest valid_from is current
 eban(banfn requisition, matnr, werks, menge, requested_by, created_on, ebeln)
 ekko(ebeln PO, lifnr, bedat PO date, created_at, ekgrp, created_by buyer, approval_status, status OPEN|CLOSED)
 ekpo(ebeln, ebelp, matnr, werks, menge qty, meins, netpr unit price, netwr net value INR, eindt delivery date, matkl)
@@ -259,14 +260,18 @@ def plan_query(q: str) -> SQLPlan | None:
         if len(pm):
             sql = (f"SELECT t.matnr, t.maktx, v.lifnr, v.name1 AS vendor, v.ort01 AS city, e.netpr AS contract_price_inr,\n"
                    f"       e.aplfz AS lead_time_days, CASE WHEN a.is_primary = 1 THEN 'primary' ELSE 'secondary' END AS source\n"
-                   f"FROM eina a JOIN eine e ON e.infnr = a.infnr JOIN lfa1 v ON v.lifnr = a.lifnr JOIN makt t ON t.matnr = a.matnr\n"
+                   f"FROM eina a JOIN eine e ON e.infnr = a.infnr\n"
+               f"       AND e.valid_from = (SELECT MAX(e2.valid_from) FROM eine e2 WHERE e2.infnr = a.infnr)\n"
+               f"JOIN lfa1 v ON v.lifnr = a.lifnr JOIN makt t ON t.matnr = a.matnr\n"
                    f"WHERE {_in('a.matnr', pm.matnr)}\nORDER BY t.matnr, a.is_primary DESC, e.aplfz")
             return SQLPlan(sql, "vendor_for_material", "Vendors, contract prices and lead times", {"materials": list(pm.matnr)})
 
     # what does vendor V supply
     if len(vend) and re.search(r"(what|which).*(material|item|suppl)|supplies|catalog", low):
         sql = (f"SELECT v.lifnr, v.name1, a.matnr, t.maktx, e.netpr AS contract_price_inr, e.aplfz AS lead_time_days\n"
-               f"FROM eina a JOIN eine e ON e.infnr = a.infnr JOIN lfa1 v ON v.lifnr = a.lifnr JOIN makt t ON t.matnr = a.matnr\n"
+               f"FROM eina a JOIN eine e ON e.infnr = a.infnr\n"
+               f"       AND e.valid_from = (SELECT MAX(e2.valid_from) FROM eine e2 WHERE e2.infnr = a.infnr)\n"
+               f"JOIN lfa1 v ON v.lifnr = a.lifnr JOIN makt t ON t.matnr = a.matnr\n"
                f"WHERE {_in('a.lifnr', vend.lifnr)}\nORDER BY t.maktx")
         return SQLPlan(sql, "materials_of_vendor", "Materials supplied by vendor", {"vendors": list(vend.lifnr)})
 

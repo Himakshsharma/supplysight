@@ -23,7 +23,9 @@ def recommend_reorder_points(series: pd.DataFrame, forecast: np.ndarray, sigma: 
         tables: needs eina/eine (primary lead time), marc (MINBE), mard (stock), makt.
     """
     z = Z_SERVICE.get(service_level, 1.6449)
-    info = tables["eina"].merge(tables["eine"], on="infnr")
+    from supplysight.data import current_info_records
+
+    info = current_info_records(tables)
     lt = info[info.is_primary.astype(int) == 1].groupby("matnr").aplfz.first().astype(float)
     marc = tables["marc"].set_index(["matnr", "werks"])
     mard = tables["mard"].set_index(["matnr", "werks"])

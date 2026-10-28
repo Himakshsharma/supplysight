@@ -55,12 +55,41 @@ def anomaly_features(tables: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, pd.
     return f, pairs, dup
 
 
-def _labels(f: pd.DataFrame, tables: dict[str, pd.DataFrame]) -> pd.Series:
+def _labels(f: pd.DataFrame, tables: dict[str, pd.DataFrame], feedback: pd.DataFrame | None = None) -> pd.Series:
+    """Evaluation labels = injected ground truth, overridden by analyst feedback when present.
+
+    In a real deployment there is no injected truth, so analyst verdicts from the review queue
+    become the only labels - the same code path handles both.
+    """
     lab = tables.get("anomaly_labels")
-    if lab is None or lab.empty:
-        return pd.Series([None] * len(f), index=f.index, dtype=object)
-    m = f[["ebeln", "ebelp"]].merge(lab, on=["ebeln", "ebelp"], how="left")
-    return pd.Series(m.anomaly_type.values, index=f.index)
+    out = pd.Series([None] * len(f), index=f.index, dtype=object)
+    if lab is not None and not lab.empty:
+        m = f[["ebeln", "ebelp"]].merge(lab, on=["ebeln", "ebelp"], how="left")
+        out = pd.Series(m.anomaly_type.values, index=f.index, dtype=object)
+    if feedback is not None and not feedback.empty:
+        fb = f[["ebeln", "ebelp"]].merge(feedback[["ebeln", "ebelp", "verdict"]].drop_duplicates(["ebeln", "ebelp"], keep="last"),
+                                         on=["ebeln", "ebelp"], how="left")
+        v = pd.Series(fb.verdict.values, index=f.index)
+        out = out.where(~(v == "false_positive"), None)
+        out = out.where(~((v == "true_issue") & out.isna()), "analyst_confirmed")
+    return out
+
+
+def _load_feedback() -> pd.DataFrame | None:
+    return read_table("review_feedback") if table_exists("review_feedback") else None
+
+
+def publish_anomaly(model: AnomalyDetector, f: pd.DataFrame, pairs: pd.DataFrame, version: int) -> pd.DataFrame:
+    """Score every PO with ``model`` and write po_scores + vendor_duplicates."""
+    full = model.score(f)
+    out = f[["ebeln", "ebelp", "lifnr", "matnr", "werks", "netwr"]].copy()
+    out["bedat"] = f.bedat.dt.date.astype(str)
+    out = out.join(full[["score", "risk_level", "rule_score", "iforest_score", "ae_score"]])
+    out["reasons"] = full.reasons.map(json.dumps)
+    out["model_version"] = str(version)
+    write_table("po_scores", out)
+    write_table("vendor_duplicates", pairs)
+    return full
 
 
 def _feedback_stacker(det: AnomalyDetector, f: pd.DataFrame, feedback: pd.DataFrame | None):
@@ -80,13 +109,23 @@ def _feedback_stacker(det: AnomalyDetector, f: pd.DataFrame, feedback: pd.DataFr
 
 
 def train_anomaly(tables: dict[str, pd.DataFrame] | None = None, quick: bool = False,
-                  promote: str = "if_better", feedback: pd.DataFrame | None = None) -> dict:
-    """Train, evaluate, register and deploy the PO anomaly ensemble."""
+                  promote: str = "if_better", feedback: pd.DataFrame | None = None,
+                  window_days: int | None = None) -> dict:
+    """Train, evaluate, register and deploy the PO anomaly ensemble.
+
+    ``window_days`` restricts training to the most recent period (sliding window), which
+    lets a retrained model adapt to a new price/volume regime after drift.
+    """
     s = get_settings()
     tables = tables or load_source_tables()
     with timer() as t_feat:
-        f, pairs, dup = anomaly_features(tables)
-    types = _labels(f, tables)
+        f_all, pairs, dup = anomaly_features(tables)
+    f = f_all
+    if window_days:
+        f = f_all[f_all.created_at >= f_all.created_at.max() - pd.Timedelta(days=window_days)].copy()
+    if feedback is None:
+        feedback = _load_feedback()
+    types = _labels(f, tables, feedback)
     y = types.notna().astype(int).to_numpy()
     cut = f.created_at.quantile(0.7)
     tr, te = (f.created_at < cut).to_numpy(), (f.created_at >= cut).to_numpy()
@@ -100,8 +139,6 @@ def train_anomaly(tables: dict[str, pd.DataFrame] | None = None, quick: bool = F
                                flagged=(sc.risk_level != "Low").to_numpy(), types=types[te])
         # production model: refit on the full history
         final = AnomalyDetector(rule_cfg=rule_cfg, seed=s.seed, nn_backend=s.nn_backend).fit(f)
-        if feedback is None and table_exists("review_feedback"):
-            feedback = read_table("review_feedback")
         final.stacker = _feedback_stacker(final, f, feedback)
         final.dup_scores = dup
         full = final.score(f)
@@ -118,6 +155,7 @@ def train_anomaly(tables: dict[str, pd.DataFrame] | None = None, quick: bool = F
                    "n_items": len(f), "n_labelled": int(y.sum()),
                    "feedback_labels": 0 if feedback is None else len(feedback)}
         run["params"] = {"features": ",".join(ML_FEATURES), "nn_backend": final.ae.backend, "train_cut": str(cut),
+                         "window_days": window_days,
                          "approval_threshold": s.approval_threshold_inr, "stacker": final.stacker is not None}
         run["metrics"] = metrics
         rep = _reports()
@@ -134,14 +172,8 @@ def train_anomaly(tables: dict[str, pd.DataFrame] | None = None, quick: bool = F
     version = reg.register(ANOMALY_MODEL, final, metrics, run["params"], run["run_id"])
     promoted = _maybe_promote(reg, ANOMALY_MODEL, version, metrics["holdout_pr_auc"], promote, higher_is_better=True)
 
-    if promoted or promote == "always":
-        out = f[["ebeln", "ebelp", "lifnr", "matnr", "werks", "netwr"]].copy()
-        out["bedat"] = f.bedat.dt.date.astype(str)
-        out = out.join(full[["score", "risk_level", "rule_score", "iforest_score", "ae_score"]])
-        out["reasons"] = full.reasons.map(json.dumps)
-        out["model_version"] = str(version)
-        write_table("po_scores", out)
-        write_table("vendor_duplicates", pairs)
+    if promoted:
+        publish_anomaly(final, f_all, pairs, version)
     _json(_reports() / "anomaly_metrics.json", {**metrics, "version": version, "promoted": promoted,
                                                 "feature_secs": t_feat["ms"] / 1000})
     log.info("anomaly: holdout PR-AUC %.3f (rules %.3f), v%d promoted=%s", metrics["holdout_pr_auc"],
@@ -226,9 +258,6 @@ def train_forecast(tables: dict[str, pd.DataFrame] | None = None, quick: bool = 
         model = GBMForecaster(backend=s.gbm_backend, seed=s.seed).fit(panel)
         model.interval_scale, model.sigma = k, sigma
         model.series = panel.series.copy()
-        fc = model.predict(panel, panel.n_hist, FORECAST_HORIZON)
-        p10 = np.clip(fc["p50"] - k * (fc["p50"] - fc["p10"]), 0, None)
-        p90 = fc["p50"] + k * (fc["p90"] - fc["p50"])
 
         ov = overall.set_index("model")
         best_base = ov.drop(index="gbm").wmape.min()
@@ -254,17 +283,8 @@ def train_forecast(tables: dict[str, pd.DataFrame] | None = None, quick: bool = 
     reg = Registry()
     version = reg.register(FORECAST_MODEL, model, metrics, run["params"], run["run_id"])
     promoted = _maybe_promote(reg, FORECAST_MODEL, version, metrics["gbm_wmape"], promote, higher_is_better=False)
-    if promoted or promote == "always":
-        weeks = pd.date_range(panel.weeks[panel.n_hist - 1] + pd.Timedelta(days=7), periods=FORECAST_HORIZON, freq="W-MON")
-        rows = []
-        for i, r in enumerate(panel.series.itertuples()):
-            for h, w in enumerate(weeks):
-                rows.append((r.matnr, r.werks, w.date().isoformat(), float(fc["p50"][i, h]), float(p10[i, h]),
-                             float(p90[i, h]), str(version)))
-        write_table("demand_forecast", pd.DataFrame(rows, columns=["matnr", "werks", "week", "yhat", "p10", "p90",
-                                                                   "model_version"]))
-        reorder = recommend_reorder_points(panel.series, fc["p50"], sigma, tables)
-        write_table("reorder_recommendations", reorder)
+    if promoted:
+        reorder = publish_forecast(model, panel, tables, version)
         metrics["stockout_high"] = int((reorder.stockout_risk == "High").sum())
         metrics["stockout_medium"] = int((reorder.stockout_risk == "Medium").sum())
     _json(_reports() / "forecast_metrics.json", {**metrics, "version": version, "promoted": promoted})
@@ -272,6 +292,37 @@ def train_forecast(tables: dict[str, pd.DataFrame] | None = None, quick: bool = 
              metrics["gbm_wmape"], best_base, metrics["best_baseline"], raw_cov, cal_cov, version, promoted)
     return {"metrics": metrics, "version": version, "promoted": promoted, "overall": overall, "by_zone": by_zone,
             "by_group": by_group}
+
+
+def publish_forecast(model: GBMForecaster, panel, tables: dict[str, pd.DataFrame], version: int) -> pd.DataFrame:
+    """Forecast 12 weeks from the data end, write demand_forecast and reorder_recommendations."""
+    k = getattr(model, "interval_scale", 1.0)
+    fc = model.predict(panel, panel.n_hist, FORECAST_HORIZON)
+    p10 = np.clip(fc["p50"] - k * (fc["p50"] - fc["p10"]), 0, None)
+    p90 = fc["p50"] + k * (fc["p90"] - fc["p50"])
+    sigma = _align_sigma(model, panel)
+    weeks = pd.date_range(panel.weeks[panel.n_hist - 1] + pd.Timedelta(days=7), periods=FORECAST_HORIZON, freq="W-MON")
+    rows = []
+    for i, r in enumerate(panel.series.itertuples()):
+        for h, w in enumerate(weeks):
+            rows.append((r.matnr, r.werks, w.date().isoformat(), float(fc["p50"][i, h]), float(p10[i, h]),
+                         float(p90[i, h]), str(version)))
+    write_table("demand_forecast", pd.DataFrame(rows, columns=["matnr", "werks", "week", "yhat", "p10", "p90",
+                                                               "model_version"]))
+    reorder = recommend_reorder_points(panel.series, fc["p50"], sigma, tables)
+    write_table("reorder_recommendations", reorder)
+    return reorder
+
+
+def _align_sigma(model: GBMForecaster, panel) -> np.ndarray:
+    """Map the model's per-series error sigma onto the (possibly different) panel series."""
+    ref = getattr(model, "series", None)
+    sig = getattr(model, "sigma", None)
+    if ref is None or sig is None:
+        return np.zeros(len(panel.series))
+    m = dict(zip(zip(ref.matnr, ref.werks, strict=True), sig, strict=True))
+    med = float(np.median(sig)) if len(sig) else 0.0
+    return np.array([m.get((a, b), med) for a, b in zip(panel.series.matnr, panel.series.werks, strict=True)])
 
 
 def _has_parquet() -> bool:

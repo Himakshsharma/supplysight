@@ -33,7 +33,7 @@ SCHEMA: dict[str, tuple[dict[str, str], list[str]]] = {
     "mard": ({"matnr": T, "werks": T, "lgort": T, "labst": F, "open_po_qty": F}, ["matnr", "werks", "lgort"]),
     "eina": ({"infnr": T, "matnr": T, "lifnr": T, "created_on": T, "is_primary": I}, ["infnr"]),
     "eine": ({"infnr": T, "ekorg": T, "netpr": F, "peinh": I, "waers": T, "aplfz": I, "valid_from": T},
-             ["infnr", "ekorg"]),
+             ["infnr", "ekorg", "valid_from"]),  # one condition record per validity start
     "eban": ({"banfn": T, "bnfpo": T, "matnr": T, "werks": T, "menge": F, "requested_by": T,
               "created_on": T, "ebeln": T, "ebelp": T}, ["banfn", "bnfpo"]),
     "ekko": ({"ebeln": T, "bukrs": T, "bsart": T, "lifnr": T, "bedat": T, "created_at": T, "ekorg": T,
